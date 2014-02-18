@@ -90,6 +90,7 @@ class PendingRX:
 #std::map<uint64_t, PendingRX> g_pending_control
 """
 g_pending_control = {}
+g_pending_bulk = {}
 
 def keep_packet( _in ):
     # grr forgot I had this on
@@ -268,23 +269,6 @@ def deviceStr():
     # return "dev.udev"
     return "udev"
 
-def processBulk(urb, dat_cur):
-    # TODO: do something for bulk transfers?
-    # Don't care about this but populate for now
-    # g_pending_control[urb.id] = pending
-
-    if urb.type & USB_DIR_IN:
-        if urb.type == URB_SUBMIT:
-            g_payload_bytes.bulk.req_in += urb.length
-        if urb.type == URB_COMPLETE:
-            g_payload_bytes.bulk.in_ += urb.data_length
-    else:
-        if urb.type == URB_SUBMIT:
-            g_payload_bytes.bulk.req_out += urb.length
-        if urb.type == URB_COMPLETE:
-            g_payload_bytes.bulk.out += urb.data_length
-        
-    
 
 urb_type2str = {
         URB_SUBMIT: 'URB_SUBMIT',
@@ -522,30 +506,16 @@ class Gen:
             if urb.type == URB_SUBMIT:
                 self.processControlSubmit(urb, dat_cur)
             elif urb.type == URB_COMPLETE:
-                if args.verbose:
-                    print 'Pending control (%d):' % (len(g_pending_control),)
-                    for k in g_pending_control:
-                        print '  %s' % (k,)
-                if not urb.id in g_pending_control:
-                    print "WTF?  packet %d missing control URB submit.  URB ID: 0x%016lX" % (self.g_cur_packet, urb.id)
-                    if (g_halt_error):
-                        sys.exit(1)
-                    
-                
-                submit = g_pending_control[urb.id]
-                # Done with it, get rid of it
-                del g_pending_control[urb.id]
-                '''
-                if not g_pending_control.empty():
-                    # comment("WARNING: out of order traffic packet around %u, not too much thought put into that" % (self.g_cur_packet))
-                    pass
-                '''
-                
-                self.processControlComplete(submit, dat_cur)
+                self.processControlComplete(urb, dat_cur)
             else:
                 raise Exception('Bad control URB type')
         elif urb.transfer_type == URB_BULK:
-            processBulk(urb, dat_cur)
+            if urb.type == URB_SUBMIT:
+                self.processBulkSubmit(urb, dat_cur)
+            elif urb.type == URB_COMPLETE:
+                self.processBulkComplete(urb, dat_cur)
+            else:
+                raise Exception('Bad bulk URB type')
         
     
     def processControlSubmit(self, urb, dat_cur):
@@ -650,7 +620,26 @@ class Gen:
         if keep_packet(submit):
             printControlRequest(submit, data_str, data_size, "usb_sndctrlpipe(%s, 0), " % (deviceStr()) )
         
-    def processControlComplete(self, submit, dat_cur):
+    def processControlComplete(self, urb, dat_cur):
+        if args.verbose:
+            print 'Pending control (%d):' % (len(g_pending_control),)
+            for k in g_pending_control:
+                print '  %s' % (k,)
+        if not urb.id in g_pending_control:
+            print "WTF?  packet %d missing control URB submit.  URB ID: 0x%016lX" % (self.g_cur_packet, urb.id)
+            if (g_halt_error):
+                sys.exit(1)
+            
+        
+        submit = g_pending_control[urb.id]
+        # Done with it, get rid of it
+        del g_pending_control[urb.id]
+        '''
+        if not g_pending_control.empty():
+            # comment("WARNING: out of order traffic packet around %u, not too much thought put into that" % (self.g_cur_packet))
+            pass
+        '''
+        
         if (False and keep_packet(submit)):
             bulk = g_payload_bytes.bulk
             # payload_bytes_type_t *ctrl = &g_payload_bytes.ctrl
@@ -683,6 +672,18 @@ class Gen:
         else:
             self.processControlCompleteOut(submit, dat_cur)
 
+    def processBulkSubmit(self, urb, dat_cur):
+        if urb.type & USB_DIR_IN:
+            g_payload_bytes.bulk.req_in += urb.length
+        else:
+            g_payload_bytes.bulk.req_out += urb.length        
+    
+    def processBulkComplete(self, urb, dat_cur):
+        if urb.type & USB_DIR_IN:
+            g_payload_bytes.bulk.in_ += urb.data_length
+        else:
+            g_payload_bytes.bulk.out += urb.data_length
+    
 
 
 if __name__ == "__main__":
