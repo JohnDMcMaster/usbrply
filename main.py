@@ -238,27 +238,27 @@ def printControlRequest(submit, data_str, data_size, pipe_str):
                 timeout )
         print out
 
-def bytes2AnonArray(in_, byte_type = "uint8_t"):
+def bytes2AnonArray(bytes, byte_type = "uint8_t"):
     if args.ofmt == OUTPUT_LIBUSBPY:
         byte_str = "\""
-        payload = str(in_)
     
-        for i in xrange(len(payload)):
-            byte_str += "\\x%02X" % (ord(payload[i]),)
+        for i in xrange(len(bytes)):
+            if i and i % 16 == 0:
+                byte_str += '\"\n              \"'
+            byte_str += "\\x%02X" % (ord(bytes[i]),)
         return byte_str + "\""
     else:
         byte_str = "(%s[]){" % (byte_type,)
         pad = ""
-        payload = str(in_)
         
-        for i in xrange(len(payload)):
+        for i in xrange(len(bytes)):
             if i % 16 == 0:
                 pad = ""
                 if i != 0:
                     byte_str += ",\n        "
                 
             byte_str += pad
-            byte_str += "0x%02X" % payload[i]
+            byte_str += "0x%02X" % bytes[i]
             pad = ", "
         
         return byte_str + "}"
