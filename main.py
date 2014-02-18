@@ -33,7 +33,6 @@ g_min_packet = 0
 g_max_packet = float('inf')
 g_error = False
 g_halt_error = True
-g_verbose = False
 g_allow_short = False
 g_custom_call = False
 g_use_defines = False
@@ -64,9 +63,15 @@ URB_ERROR =         ord('E')
 
 
 
-def dbg(args):
-    if g_verbose:
-        print args
+def dbg(s):
+    if args.verbose:
+        print s
+
+def comment(s):
+    if args.ofmt == 'LIBUSBPY':
+        print '# %s' % (s,)
+    else:
+        print '//%s' % (s,)
 
 # When we get an IN request we may process packets in between
 class PendingRX:
@@ -99,9 +104,9 @@ class payload_bytes_type_t:
         self.in_ = None
         self.in_last = None
     
-        self.req_out = None
+        self.req_out = 0
         self.req_out_last = None
-        self.out = None
+        self.out = 0
         self.out_last = None
 
 class payload_bytes_t:
@@ -131,7 +136,7 @@ usb_ctrlrequest_nt = namedtuple('usb_ctrlrequest', ('bRequestType',
         'wValue',
         'wIndex',
         'wLength',
-        # FIXME: some mystery bytes that I don't understand
+        # FIXME: what exactly are these?
         'res'))
 usb_ctrlrequest_fmt = '<BBHHHH'
 usb_ctrlrequest_sz = struct.calcsize(usb_ctrlrequest_fmt)
@@ -239,7 +244,7 @@ def bytes2AnonArray(in_, byte_type = "uint8_t"):
         payload = str(in_)
     
         for i in xrange(len(payload)):
-            byte_str += "\\x%02X" % (payload[i],)
+            byte_str += "\\x%02X" % (ord(payload[i]),)
         return byte_str + "\""
     else:
         byte_str = "(%s[]){" % (byte_type,)
@@ -264,37 +269,22 @@ def deviceStr():
     return "udev"
 
 def processBulk(urb, dat_cur):
-    raise Exception("FIXME")
-
-"""
-def processBulk(usb_urb_t *urb, dat_cur):
     # TODO: do something for bulk transfers?
     # Don't care about this but populate for now
     # g_pending_control[urb.id] = pending
 
-    if (URB_IS_IN(urb)):
-        switch (urb.type):
-        case URB_SUBMIT:
+    if urb.type & USB_DIR_IN:
+        if urb.type == URB_SUBMIT:
             g_payload_bytes.bulk.req_in += urb.length
-            break
-        case URB_COMPLETE:
-            g_payload_bytes.bulk.in += urb.data_length
-            break
-        }        
-    else {    
-        switch (urb.type):
-        case URB_SUBMIT:
+        if urb.type == URB_COMPLETE:
+            g_payload_bytes.bulk.in_ += urb.data_length
+    else:
+        if urb.type == URB_SUBMIT:
             g_payload_bytes.bulk.req_out += urb.length
-            break
-        case URB_COMPLETE:
+        if urb.type == URB_COMPLETE:
             g_payload_bytes.bulk.out += urb.data_length
-            break
         
-"""
     
-def sizeof(*args):
-    raise Exception('FIXME')
-
 
 urb_type2str = {
         URB_SUBMIT: 'URB_SUBMIT',
@@ -397,9 +387,7 @@ def request_type2str(bRequestType):
 
 
 def print_urb(urb):
-    print "  id: 0x%016lX" % (urb.id)
-    print hex(urb.type)
-    print type(urb.type)
+    print "URB id: 0x%016lX" % (urb.id)
     print "  type: %s (%c / 0x%02X)" % (urb_type2str[urb.type], urb.type, urb.type)
     #print "    dir: %s" % ('IN' if urb.type & URB_TRANSFER_IN else 'OUT',)
     print "  transfer_type: %s (0x%02X)" % (transfer2str[urb.transfer_type], urb.transfer_type )
@@ -415,7 +403,7 @@ def print_urb(urb):
     print "  data_length: 0x%08X" % (urb.data_length)
 
 def UVDHexdumpCore(*args):
-    print 'hexdump broken'
+    comment('hexdump broken')
 
 class Gen:
     def __init__(self):
@@ -436,7 +424,13 @@ class Gen:
         if self.g_cur_packet < g_min_packet or self.g_cur_packet > g_max_packet:
             # print "# Skipping packet %d" % (self.g_cur_packet)
             return
+        if args.verbose:
+            print
+            print
+            print
+            print 'PACKET %s' % (self.g_cur_packet,)
         
+        print
         '''
         struct pcap_pkthdr {
             struct timeval ts;    /* time stamp */
@@ -454,8 +448,10 @@ class Gen:
             print "packet %d: malformed, caplen %d != len %d", self.g_cur_packet, caplen, len(packet)
             g_error = True
             return
+        if args.verbose:
+            print 'Len: %d' % len(packet)
         
-        dbg("PACKET %u: length %u" % (self.g_cur_packet, len(packet)))
+        dbg("Length %u" % (len(packet),))
         if 0:
             print "PACKET %u: length %u" % (self.g_cur_packet, len(packet))
             UVDHexdumpCore(packet, "  ")
@@ -476,7 +472,7 @@ class Gen:
             uint32_t status
             uint32_t length
             uint32_t data_length
-            //not sure what these are...not labeled in wireshark either
+            //These form the URB setup for control transfers and are techincally part of the URB
             //uint8_t pad[24]
         } __attribute__((packed)) usb_urb_t
         '''
@@ -492,8 +488,12 @@ class Gen:
                 'usec',
                 'status',
                 'length',
-                'data_length'))
-        usb_urb_fmt = '<QBBBBHBBQIIII'
+                'data_length',
+                # Main use is URB setup for control requests, not sure if thats universal?
+                # TODO: check how these are used in bulk requests
+                # If it is the same, they should be merged into this structure
+                'ctrlrequest',))
+        usb_urb_fmt = '<QBBBBHBBQIIII24s'
         usb_urb_sz = struct.calcsize(usb_urb_fmt)
         def usb_urb(s):
             return  usb_urb_nt(*struct.unpack(usb_urb_fmt, str(s)))
@@ -501,14 +501,13 @@ class Gen:
         # caplen is actual length, len is reported
         urb = usb_urb(packet[0:usb_urb_sz])
         dat_cur = packet[usb_urb_sz:]
-        print_urb(urb)
         
-        if g_verbose:
-            print "Packet %d (header size: %lu)" % (self.g_cur_packet, usb_urb_sz)
+        if args.verbose:
+            print "Header size: %lu" % (usb_urb_sz,)
             print_urb(urb)
         
         if 0:
-            print "PACKET %u: URB" % (self.g_cur_packet)
+            print "URB" % (self.g_cur_packet)
             UVDHexdumpCore(urb, "  ")
         
         
@@ -519,52 +518,48 @@ class Gen:
             
         
         # Find the matching submit request
-        submit = None
-        if urb.type == URB_COMPLETE:
-            if not urb.id in g_pending_control:
-                print "WTF?  packet %d missing control URB end.  URB ID: 0x%016lX" % (self.g_cur_packet, urb.id)
-                if (g_halt_error):
-                    sys.exit(1)
-                
-            
-            submit = g_pending_control[urb.id]
-            # Done with it, get rid of it
-            del g_pending_control[urb.id]
-            '''
-            if not g_pending_control.empty():
-                # print "WARNING: out of order traffic packet around %u, not too much thought put into that" % (self.g_cur_packet)
-                pass
-            '''
-            
+        
         if urb.transfer_type == URB_CONTROL:
             if urb.type == URB_SUBMIT:
                 self.processControlSubmit(urb, dat_cur)
             elif urb.type == URB_COMPLETE:
+                if args.verbose:
+                    print 'Pending control (%d):' % (len(g_pending_control),)
+                    for k in g_pending_control:
+                        print '  %s' % (k,)
+                if not urb.id in g_pending_control:
+                    print "WTF?  packet %d missing control URB submit.  URB ID: 0x%016lX" % (self.g_cur_packet, urb.id)
+                    if (g_halt_error):
+                        sys.exit(1)
+                    
+                
+                submit = g_pending_control[urb.id]
+                # Done with it, get rid of it
+                del g_pending_control[urb.id]
+                '''
+                if not g_pending_control.empty():
+                    # comment("WARNING: out of order traffic packet around %u, not too much thought put into that" % (self.g_cur_packet))
+                    pass
+                '''
+                
                 self.processControlComplete(submit, dat_cur)
             else:
-                print "WTF?"
-                if (g_halt_error):
-                    sys.exit(1)
-                
-            
+                raise Exception('Bad control URB type')
         elif urb.transfer_type == URB_BULK:
             processBulk(urb, dat_cur)
         
-        
-        if urb.type == URB_COMPLETE:
-            # Done...release buffers if any
-            #submit.free()
-            pass
     
     def processControlSubmit(self, urb, dat_cur):
         pending = PendingRX()
         pending.m_urb = urb
     
-        ctrl = usb_ctrlrequest(dat_cur[0:usb_ctrlrequest_sz])
-        dat_cur = dat_cur[usb_ctrlrequest_sz:]
+        if args.verbose:
+            print 'Remaining data: %d' % (len(dat_cur))
+            print 'ctrlrequest: %d' % (len(urb.ctrlrequest))
+        ctrl = usb_ctrlrequest(urb.ctrlrequest[0:usb_ctrlrequest_sz])
         
-        if g_verbose:
-            print "Packet %d control submit (control info size %lu)" % (self.g_cur_packet, sizeof(*ctrl),)
+        if args.verbose:
+            print "Packet %d control submit (control info size %lu)" % (self.g_cur_packet, 666)
             print "    bRequestType: %s (0x%02X)" % (request_type2str(ctrl.bRequestType), ctrl.bRequestType)
             print "    bRequest: %s (0x%02X)" % (request2str(ctrl.bRequestType, ctrl.bRequest ), ctrl.bRequest)
             print "    wValue: 0x%04X" % (ctrl.wValue)
@@ -576,14 +571,15 @@ class Gen:
         else:
             dbg("%d: OUT" % (self.g_cur_packet))
             if (len(dat_cur) != urb.data_length):
-                print "remaining bytes %d != expected payload out bytes %d" % (len(dat_cur), urb.data_length)
+                comment("WARNING: remaining bytes %d != expected payload out bytes %d" % (len(dat_cur), urb.data_length))
                 UVDHexdumpCore(dat_cur, "  ")
-                g_error = True
-                return
+                #raise Exception('See above')
             pending.m_data_out = str(dat_cur)
         
         pending.m_ctrl = ctrl
         pending.packet_number = self.g_cur_packet
+        if args.verbose:
+            print 'Added pending URB %s' % urb.id
         g_pending_control[urb.id] = pending
 
 
@@ -605,7 +601,7 @@ class Gen:
         if (keep_packet(submit)):
             printControlRequest(submit, data_str, data_size, "usb_rcvctrlpipe(%s, 0), " % (deviceStr(),) )
         
-        
+        '''
         # Take off the unknown struct
         if len(dat_cur) < control_rx_sz:
             print "not enough data"
@@ -615,19 +611,15 @@ class Gen:
         
         dat_cur = dat_cur[control_rx_sz:]
         # Now dat_cur/len(dat_cur) is the control in data payload
+        '''
         
         # Verify we actually have enough / expected
         # If exact match don't care
         if (len(dat_cur) != max_payload_sz):
-            if (g_allow_short and len(dat_cur) < max_payload_sz):
-                print "# WARNING: shrinking response, max %u but got %u" % (max_payload_sz)
+            if len(dat_cur) < max_payload_sz:
+                comment("NOTE:: req max %u but got %u" % (max_payload_sz, len(dat_cur)))
             else:
-                print "expected remaining bytes %u to be the requested length %u" % (len(dat_cur), max_payload_sz)
-                if (g_halt_error):
-                    sys.exit(1)
-                return
-            
-        
+                raise Exception('invalid response')
         
         if (submit.m_ctrl.wLength):
             if g_packet_numbers:
@@ -649,10 +641,10 @@ class Gen:
         data_str = "None"
         
         # print "Data out size: %u vs urb size %u" % (submit.m_data_out_size, submit.m_urb.data_length )
-        if (submit.m_data_out_size):
+        if (len(submit.m_data_out)):
             # Note that its the submit from earlier, not the ack that we care about
-            data_str = bytes2AnonArray(submit.m_data_out, submit.m_data_out_size)
-            data_size = submit.m_data_out_size
+            data_str = bytes2AnonArray(submit.m_data_out)
+            data_size = len(submit.m_data_out)
         elif args.ofmt == OUTPUT_LIBUSBPY:
             data_str = "\"\""
         
@@ -660,38 +652,36 @@ class Gen:
             printControlRequest(submit, data_str, data_size, "usb_sndctrlpipe(%s, 0), " % (deviceStr()) )
         
     def processControlComplete(self, submit, dat_cur):
-        '''
-        if (false and keep_packet(submit)):
-            payload_bytes_type_t *bulk = &g_payload_bytes.bulk
+        if (False and keep_packet(submit)):
+            bulk = g_payload_bytes.bulk
             # payload_bytes_type_t *ctrl = &g_payload_bytes.ctrl
             
-            print "Transer statistics")
-            print "    Bulk")
-            print "        In: %u (delta %u), req: %u (delta %u)",
-                    bulk.in, bulk.in - bulk.in_last,
+            print "Transer statistics"
+            print "    Bulk"
+            print "        In: %u (delta %u), req: %u (delta %u)" % (
+                    bulk.in_, bulk.in_ - bulk.in_last,
                     bulk.req_in, bulk.req_in - bulk.req_in_last
                     )
             update_delta( bulk )
             print "        Out: %u, req: %u" % (g_payload_bytes.bulk.out, g_payload_bytes.bulk.req_out)
-            print "    Control")
-            print "        In: %u, req: %u" % (g_payload_bytes.ctrl.in, g_payload_bytes.ctrl.req_in)
+            print "    Control"
+            print "        In: %u, req: %u" % (g_payload_bytes.ctrl.in_, g_payload_bytes.ctrl.req_in)
             print "        Out: %u, req: %u" % (g_payload_bytes.ctrl.out, g_payload_bytes.ctrl.req_out)
         
         
-        if (!keep_packet(submit)):
+        if not keep_packet(submit):
             return
         
         if g_packet_numbers:
-            if (args.ofmt == OUTPUT_LIBUSBPY) {
-                oprintf("# Generated from packet %u/%u", submit.packet_number, self.g_cur_packet)
+            if args.ofmt == OUTPUT_LIBUSBPY:
+                print "# Generated from packet %u/%u" % (submit.packet_number, self.g_cur_packet)
             else:
-                oprintf("//Generated from packet %u/%u", submit.packet_number, self.g_cur_packet)
+                print "//Generated from packet %u/%u" % (submit.packet_number, self.g_cur_packet)
         
         if (submit.m_ctrl.bRequestType & URB_TRANSFER_IN):
             self.processControlCompleteIn(submit, dat_cur)
         else:
             self.processControlCompleteOut(submit, dat_cur)
-        '''
 
 
 
@@ -705,17 +695,11 @@ if __name__ == "__main__":
     parser.add_argument('-s', help='allow short')
     parser.add_argument('-f', help='custom call')
     parser.add_argument('-n', help='packet numbers')
-    parser.add_argument('-v', action='store_true', help='verbose')
+    parser.add_argument('--verbose', '-v', action='store_true', help='verbose')
 
     parser.add_argument('fin', help='File name in')
     args = parser.parse_args()
 
-    def comment(s):
-        if args.ofmt == 'LIBUSBPY':
-            print '# %s' % (s,)
-        else:
-            print '//%s' % (s,)
-    
     comment("Generated by uvusbreplay %s" % (VERSION_STR,))
     comment("uvusbreplay copyright 2011 John McMaster <JohnDMcMaster@gmail.com>")
     # comment("Date: %s" % (UVDCurDateTime()))
@@ -747,12 +731,12 @@ if __name__ == "__main__":
     gen = Gen()
     p.loop(-1, gen.loop_cb)
     
-    if not g_pending_control.empty():
-        print "WARNING: %lu pending requests" % (g_pending_control.size())
+    if len(g_pending_control) != 0:
+        comment("WARNING: %lu pending requests" % (g_pending_control.size()))
     
     # Makes copy/pasting easier in some editors...
     print ""
-    print 'Done!'
+    comment('Done!')
     
 
 
