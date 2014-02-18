@@ -548,7 +548,7 @@ class Gen:
         pending.m_ctrl = ctrl
         pending.packet_number = self.g_cur_packet
         if args.verbose:
-            print 'Added pending URB %s' % urb.id
+            print 'Added pending control URB %s' % urb.id
         g_pending_control[urb.id] = pending
 
 
@@ -626,59 +626,109 @@ class Gen:
             for k in g_pending_control:
                 print '  %s' % (k,)
         if not urb.id in g_pending_control:
-            print "WTF?  packet %d missing control URB submit.  URB ID: 0x%016lX" % (self.g_cur_packet, urb.id)
-            if (g_halt_error):
-                sys.exit(1)
-            
+            raise Exception("Packet %d missing control URB submit.  URB ID: 0x%016lX" % (self.g_cur_packet, urb.id))
         
         submit = g_pending_control[urb.id]
         # Done with it, get rid of it
         del g_pending_control[urb.id]
-        '''
-        if not g_pending_control.empty():
-            # comment("WARNING: out of order traffic packet around %u, not too much thought put into that" % (self.g_cur_packet))
-            pass
-        '''
         
-        if (False and keep_packet(submit)):
-            bulk = g_payload_bytes.bulk
-            # payload_bytes_type_t *ctrl = &g_payload_bytes.ctrl
-            
-            print "Transer statistics"
-            print "    Bulk"
-            print "        In: %u (delta %u), req: %u (delta %u)" % (
-                    bulk.in_, bulk.in_ - bulk.in_last,
-                    bulk.req_in, bulk.req_in - bulk.req_in_last
-                    )
-            update_delta( bulk )
-            print "        Out: %u, req: %u" % (g_payload_bytes.bulk.out, g_payload_bytes.bulk.req_out)
-            print "    Control"
-            print "        In: %u, req: %u" % (g_payload_bytes.ctrl.in_, g_payload_bytes.ctrl.req_in)
-            print "        Out: %u, req: %u" % (g_payload_bytes.ctrl.out, g_payload_bytes.ctrl.req_out)
-        
+        # self.print_stat()
         
         if not keep_packet(submit):
             return
         
         print
-        if g_packet_numbers:
-            if args.ofmt == OUTPUT_LIBUSBPY:
-                print "# Generated from packet %u/%u" % (submit.packet_number, self.g_cur_packet)
-            else:
-                print "//Generated from packet %u/%u" % (submit.packet_number, self.g_cur_packet)
+        self.packnum(submit)
         
         if (submit.m_ctrl.bRequestType & URB_TRANSFER_IN):
             self.processControlCompleteIn(submit, dat_cur)
         else:
             self.processControlCompleteOut(submit, dat_cur)
 
+    def print_stat(self):
+        bulk = g_payload_bytes.bulk
+        # payload_bytes_type_t *ctrl = &g_payload_bytes.ctrl
+        
+        print "Transer statistics"
+        print "    Bulk"
+        print "        In: %u (delta %u), req: %u (delta %u)" % (
+                bulk.in_, bulk.in_ - bulk.in_last,
+                bulk.req_in, bulk.req_in - bulk.req_in_last
+                )
+        update_delta( bulk )
+        print "        Out: %u, req: %u" % (g_payload_bytes.bulk.out, g_payload_bytes.bulk.req_out)
+        print "    Control"
+        print "        In: %u, req: %u" % (g_payload_bytes.ctrl.in_, g_payload_bytes.ctrl.req_in)
+        print "        Out: %u, req: %u" % (g_payload_bytes.ctrl.out, g_payload_bytes.ctrl.req_out)
+
+    def packnum(self, submit):
+        if not g_packet_numbers:
+            return
+        if args.ofmt == OUTPUT_LIBUSBPY:
+            print "# Generated from packet %u/%u" % (submit.packet_number, self.g_cur_packet)
+        else:
+            print "//Generated from packet %u/%u" % (submit.packet_number, self.g_cur_packet)
+
     def processBulkSubmit(self, urb, dat_cur):
         if urb.type & USB_DIR_IN:
             g_payload_bytes.bulk.req_in += urb.length
         else:
             g_payload_bytes.bulk.req_out += urb.length        
+
+
+        pending = PendingRX()
+        pending.m_urb = urb
+    
+        if args.verbose:
+            print 'Remaining data: %d' % (len(dat_cur))
+        
+        if args.verbose:
+            print "Packet %d bulk submit (control info size %lu)" % (self.g_cur_packet, 666)
+        
+        
+        
+        
+        
+        
+        
+        
+        if urb.endpoint & URB_TRANSFER_IN:
+            dbg("%d: IN" % (self.g_cur_packet))
+        else:
+            dbg("%d: OUT" % (self.g_cur_packet))
+            if (len(dat_cur) != urb.data_length):
+                comment("WARNING: remaining bytes %d != expected payload out bytes %d" % (len(dat_cur), urb.data_length))
+                UVDHexdumpCore(dat_cur, "  ")
+                #raise Exception('See above')
+            pending.m_data_out = str(dat_cur)
+        
+        pending.packet_number = self.g_cur_packet
+        if args.verbose:
+            print 'Added pending bulk URB %s' % urb.id
+        g_pending_bulk[urb.id] = pending
+
     
     def processBulkComplete(self, urb, dat_cur):
+        if args.verbose:
+            print 'Pending bulk (%d):' % (len(g_pending_bulk),)
+            for k in g_pending_bulk:
+                print '  %s' % (k,)
+        if not urb.id in g_pending_bulk:
+            raise Exception("Packet %d missing bulk URB submit.  URB ID: 0x%016lX" % (self.g_cur_packet, urb.id))
+        
+        submit = g_pending_bulk[urb.id]
+        # Done with it, get rid of it
+        del g_pending_bulk[urb.id]
+        
+        # self.print_stat()
+        
+        if not keep_packet(submit):
+            return
+        
+        print
+        self.packnum(submit)
+
+        
         if urb.type & USB_DIR_IN:
             g_payload_bytes.bulk.in_ += urb.data_length
         else:
@@ -745,7 +795,9 @@ if __name__ == "__main__":
     p.loop(-1, gen.loop_cb)
     
     if len(g_pending_control) != 0:
-        comment("WARNING: %lu pending requests" % (g_pending_control.size()))
+        comment("WARNING: %lu pending control requests" % (len(g_pending_control)))
+    if len(g_pending_bulk) != 0:
+        comment("WARNING: %lu pending bulk requests" % (len(g_pending_control)))
     
     # Makes copy/pasting easier in some editors...
     print ""
