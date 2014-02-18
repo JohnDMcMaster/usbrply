@@ -802,7 +802,7 @@ class Gen:
             data_str = "\"\""
         
         if keep_packet(submit):
-            printControlRequest(submit, data_str, data_size, "usb_sndctrlpipe(%s, 0), " % (deviceStr()) )
+            printBulkRequest(submit, data_str, data_size)
 
     def processBulkComplete(self, urb, dat_cur):
         if args.verbose:
