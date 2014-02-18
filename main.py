@@ -79,6 +79,7 @@ class PendingRX:
         #usb_urb_t m_urb
         self.m_urb = None
         #usb_ctrlrequest m_ctrl
+        # Only applies to control requests
         self.m_ctrl = None
         self.packet_number = 0
         
@@ -100,9 +101,9 @@ def keep_packet( _in ):
 
 class payload_bytes_type_t:
     def __init__(self):
-        req_in = None
+        self.req_in = 0
         self.req_in_last = None
-        self.in_ = None
+        self.in_ = 0
         self.in_last = None
     
         self.req_out = 0
@@ -238,6 +239,25 @@ def printControlRequest(submit, data_str, data_size, pipe_str):
                 data_str, data_size,
                 timeout )
         print out
+
+def printBulkRequest(submit, data_str, data_size):
+    '''
+    int LIBUSB_CALL libusb_bulk_transfer(libusb_device_handle *dev_handle,
+        unsigned char endpoint, unsigned char *data, int length,
+        int *actual_length, unsigned int timeout);
+    def bulkRead(self, endpoint, length, timeout=0):
+    def bulkWrite(self, endpoint, data, timeout=0):
+    '''
+    
+    if args.ofmt == OUTPUT_LIBUSBPY:
+        #std::string bRequestStr = get_request_str( submit.m_ctrl.bRequestType, submit.m_ctrl.bRequest )
+        #std::string bRequestTypeStr = get_request_type_str(submit.m_ctrl.bRequestType)
+        if (submit.m_urb.endpoint & URB_TRANSFER_IN):
+            print "buff = self.dev.bulkRead(0x%02X, 0x%04X)" % (submit.m_urb.endpoint, data_size)
+        else:
+            print "self.dev.bulkWrite(0x%02X, %s)" % (submit.m_urb.endpoint, data_str)
+    else:
+        raise Exception('FIXME')
 
 def bytes2AnonArray(bytes, byte_type = "uint8_t"):
     if args.ofmt == OUTPUT_LIBUSBPY:
@@ -470,7 +490,10 @@ class Gen:
                 'sec',
                 'usec',
                 'status',
+                # Control: requested data length
+                # Complete: identical to data_length?
                 'length',
+                # How much data is attached to this message
                 'data_length',
                 # Main use is URB setup for control requests, not sure if thats universal?
                 # TODO: check how these are used in bulk requests
@@ -609,6 +632,8 @@ class Gen:
         data_size = 0
         data_str = "None"
         
+        print 'Control out w/ len %d' % len(submit.m_data_out)
+        
         # print "Data out size: %u vs urb size %u" % (submit.m_data_out_size, submit.m_urb.data_length )
         if (len(submit.m_data_out)):
             # Note that its the submit from earlier, not the ack that we care about
@@ -701,6 +726,7 @@ class Gen:
                 UVDHexdumpCore(dat_cur, "  ")
                 #raise Exception('See above')
             pending.m_data_out = str(dat_cur)
+
         
         pending.packet_number = self.g_cur_packet
         if args.verbose:
@@ -708,6 +734,76 @@ class Gen:
         g_pending_bulk[urb.id] = pending
 
     
+
+
+
+    def processBulkCompleteIn(self, submit, dat_cur):
+        packet_numbering = ''
+        data_size = 0
+        data_str = "None"
+        max_payload_sz = submit.m_urb.length
+        
+        # Is it legal to have a 0 length bulk in?
+        if (max_payload_sz):
+            data_str = "buff"
+            data_size = max_payload_sz
+        elif args.ofmt == OUTPUT_LIBUSBPY:
+            data_str = "\"\""
+        
+        
+        if (keep_packet(submit)):
+            printBulkRequest(submit, data_str, data_size)
+        
+        '''
+        # Take off the unknown struct
+        if len(dat_cur) < control_rx_sz:
+            print "not enough data"
+            if (g_halt_error):
+                sys.exit(1)
+            return
+        
+        dat_cur = dat_cur[control_rx_sz:]
+        # Now dat_cur/len(dat_cur) is the control in data payload
+        '''
+        
+        # Verify we actually have enough / expected
+        # If exact match don't care
+        if (len(dat_cur) != max_payload_sz):
+            if len(dat_cur) < max_payload_sz:
+                comment("NOTE:: req max %u but got %u" % (max_payload_sz, len(dat_cur)))
+            else:
+                raise Exception('invalid response')
+        
+        if (max_payload_sz):
+            if g_packet_numbers:
+                packet_numbering = "packet %u/%u" % (submit.packet_number, self.g_cur_packet)
+            else:
+                # TODO: consider counting instead of by captured index
+                packet_numbering = "packet"
+            
+    
+            if args.ofmt == OUTPUT_LIBUSBPY:
+                print "validate_read(%s, buff, \"%s\")" % (bytes2AnonArray(dat_cur, "char"),  packet_numbering )
+            else:
+                print "validate_read(%s, %u, buff, n_rw, \"%s\");" % (bytes2AnonArray(dat_cur, "char"), packet_numbering )
+        
+    
+    
+    def processBulkCompleteOut(self, submit, dat_cur):
+        data_size = 0
+        data_str = "None"
+        
+        # print "Data out size: %u vs urb size %u" % (submit.m_data_out_size, submit.m_urb.data_length )
+        if (len(submit.m_data_out)):
+            # Note that its the submit from earlier, not the ack that we care about
+            data_str = bytes2AnonArray(submit.m_data_out)
+            data_size = len(submit.m_data_out)
+        elif args.ofmt == OUTPUT_LIBUSBPY:
+            data_str = "\"\""
+        
+        if keep_packet(submit):
+            printControlRequest(submit, data_str, data_size, "usb_sndctrlpipe(%s, 0), " % (deviceStr()) )
+
     def processBulkComplete(self, urb, dat_cur):
         if args.verbose:
             print 'Pending bulk (%d):' % (len(g_pending_bulk),)
@@ -728,11 +824,12 @@ class Gen:
         print
         self.packnum(submit)
 
-        
-        if urb.type & USB_DIR_IN:
+        if urb.endpoint & USB_DIR_IN:
             g_payload_bytes.bulk.in_ += urb.data_length
+            self.processBulkCompleteIn(submit, dat_cur)
         else:
             g_payload_bytes.bulk.out += urb.data_length
+            self.processBulkCompleteOut(submit, dat_cur)
     
 
 
