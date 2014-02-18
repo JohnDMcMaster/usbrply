@@ -199,7 +199,7 @@ def printControlRequest(submit, data_str, data_size, pipe_str):
         timeout = ''
         out = ''
     
-        print "n_rw = "
+        out += "n_rw = "
         if (g_custom_call):
             out += "dev_ctrl_msg("
         else:
@@ -430,7 +430,6 @@ class Gen:
             print
             print 'PACKET %s' % (self.g_cur_packet,)
         
-        print
         '''
         struct pcap_pkthdr {
             struct timeval ts;    /* time stamp */
@@ -672,6 +671,7 @@ class Gen:
         if not keep_packet(submit):
             return
         
+        print
         if g_packet_numbers:
             if args.ofmt == OUTPUT_LIBUSBPY:
                 print "# Generated from packet %u/%u" % (submit.packet_number, self.g_cur_packet)
