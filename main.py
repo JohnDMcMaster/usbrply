@@ -39,7 +39,7 @@ g_use_defines = False
 g_packet_numbers = True
 
 VERSION_STR    = "0.1"
-
+indent = "    "
 
 '''
 pcap/usb.h compat
@@ -62,6 +62,45 @@ URB_COMPLETE =      ord('C')
 URB_ERROR =         ord('E')
 
 
+'''
+JSON format:
+{
+    'packets':[
+        {
+            'urb_id':"2312...",
+            'dev': 20,
+            'urb_bus_id': 2,
+            urb_trans_type: 'URB_CONTROL',
+            endp_dir: 'OUT',
+            endp: 0,
+            //Submit and complete keys
+            'S':{
+                //Unprocessed USB bytes: host to device (h2d) and device to host (d2h)
+                "raw":"12FAB...", 
+                'urb_type': 'URB_SUBMIT',
+                urb_sec: 123,
+                urb_usec: 456,
+                urb_stat: -EINPROGRESS,
+                urb_len: 0
+                data_len: 0
+                urb_setup{
+                    bmRequestType: 0x40
+                    bRequest: 176,
+                    wValue: 0x0018,
+                    wIndex: 0
+                    wLength: 0
+                }
+                data: "123456AF..."
+            }
+            'C':{
+                "raw":"12421FBCA13..."
+                ...
+            }
+        }
+    ]
+}
+'''
+
 
 def dbg(s):
     if args.verbose:
@@ -70,6 +109,14 @@ def dbg(s):
 def comment(s):
     if args.ofmt == 'LIBUSBPY':
         print '# %s' % (s,)
+    elif args.ofmt == 'JSON':
+        i = 1
+        while True:
+            i = '!%d' % i
+            if not k in jact:
+                jact[k] = s
+                return
+            i += 1
     else:
         print '//%s' % (s,)
 
@@ -86,12 +133,9 @@ class PendingRX:
         # uint8_t *m_data_out
         self.m_data_out = None
 
-"""
-# Pending control requests
-#std::map<uint64_t, PendingRX> g_pending_control
-"""
-g_pending_control = {}
-g_pending_bulk = {}
+# Pending requests
+# Typically size 0-1 but sometimes more pile up
+g_pending = {}
 
 def keep_packet( _in ):
     # grr forgot I had this on
@@ -192,11 +236,14 @@ def printControlRequest(submit, data_str, data_size, pipe_str):
         #std::string bRequestStr = get_request_str( submit.m_ctrl.bRequestType, submit.m_ctrl.bRequest )
         #std::string bRequestTypeStr = get_request_type_str(submit.m_ctrl.bRequestType)
         if (submit.m_ctrl.bRequestType & URB_TRANSFER_IN):
-            print "buff = self.dev.controlRead(0x%02X, 0x%02X, 0x%04X, 0x%04X, %u)" % (submit.m_ctrl.bRequestType, submit.m_ctrl.bRequest,
+            print "%sbuff = dev.controlRead(0x%02X, 0x%02X, 0x%04X, 0x%04X, %u)" % (indent, submit.m_ctrl.bRequestType, submit.m_ctrl.bRequest,
                     submit.m_ctrl.wValue, submit.m_ctrl.wIndex, data_size)
         else:
-            print "self.dev.controlWrite(0x%02X, 0x%02X, 0x%04X, 0x%04X, %s)" % (submit.m_ctrl.bRequestType, submit.m_ctrl.bRequest,
+            print "%sdev.controlWrite(0x%02X, 0x%02X, 0x%04X, 0x%04X, %s)" % (indent, submit.m_ctrl.bRequestType, submit.m_ctrl.bRequest,
                     submit.m_ctrl.wValue, submit.m_ctrl.wIndex, data_str)
+    elif args.ofmt == 'JSON':
+        # FIXME
+        pass
     else:
         timeout = ''
         out = ''
@@ -213,13 +260,13 @@ def printControlRequest(submit, data_str, data_size, pipe_str):
             out += "%s", pipe_str
         
         
-        bRequestStr = request_type2str[ submit.m_ctrl.bRequestType, submit.m_ctrl.bRequest ]
+        bRequestStr = request_type2str[ self.submit.m_ctrl.bRequestType, self.submit.m_ctrl.bRequest ]
         bRequestTypeStr = ""
         
         if args.ofmt == OUTPUT_LIBUSB and not g_use_defines:
-            bRequestTypeStr = "0x%02X" % submit.m_ctrl.bRequestType
+            bRequestTypeStr = "0x%02X" % self.submit.m_ctrl.bRequestType
         else:
-            bRequestTypeStr = request_type2str[submit.m_ctrl.bRequestType]
+            bRequestTypeStr = request_type2str[self.submit.m_ctrl.bRequestType]
         
         
         if args.ofmt == OUTPUT_LIBUSB:
@@ -239,25 +286,6 @@ def printControlRequest(submit, data_str, data_size, pipe_str):
                 data_str, data_size,
                 timeout )
         print out
-
-def printBulkRequest(submit, data_str, data_size):
-    '''
-    int LIBUSB_CALL libusb_bulk_transfer(libusb_device_handle *dev_handle,
-        unsigned char endpoint, unsigned char *data, int length,
-        int *actual_length, unsigned int timeout);
-    def bulkRead(self, endpoint, length, timeout=0):
-    def bulkWrite(self, endpoint, data, timeout=0):
-    '''
-    
-    if args.ofmt == OUTPUT_LIBUSBPY:
-        #std::string bRequestStr = get_request_str( submit.m_ctrl.bRequestType, submit.m_ctrl.bRequest )
-        #std::string bRequestTypeStr = get_request_type_str(submit.m_ctrl.bRequestType)
-        if (submit.m_urb.endpoint & URB_TRANSFER_IN):
-            print "buff = self.dev.bulkRead(0x%02X, 0x%04X)" % (submit.m_urb.endpoint, data_size)
-        else:
-            print "self.dev.bulkWrite(0x%02X, %s)" % (submit.m_urb.endpoint, data_str)
-    else:
-        raise Exception('FIXME')
 
 def bytes2AnonArray(bytes, byte_type = "uint8_t"):
     if args.ofmt == OUTPUT_LIBUSBPY:
@@ -505,7 +533,7 @@ class Gen:
             return  usb_urb_nt(*struct.unpack(usb_urb_fmt, str(s)))
     
         # caplen is actual length, len is reported
-        urb = usb_urb(packet[0:usb_urb_sz])
+        self.urb = usb_urb(packet[0:usb_urb_sz])
         dat_cur = packet[usb_urb_sz:]
         
         if args.verbose:
@@ -517,38 +545,54 @@ class Gen:
             UVDHexdumpCore(urb, "  ")
         
         
-        if urb.type == URB_ERROR:
+        if self.urb.type == URB_ERROR:
             print "oh noes!"
             if (g_halt_error):
                 sys.exit(1)
             
-        
+        if self.urb.type == URB_COMPLETE:
+            if args.verbose:
+                print 'Pending (%d):' % (len(g_pending),)
+                for k in g_pending:
+                    print '  %s' % (k,)
+            if not self.urb.id in g_pending:
+                raise Exception("Packet %d missing control URB submit.  URB ID: 0x%016lX" % (self.g_cur_packet, self.urb.id))
+            
+            self.submit = g_pending[self.urb.id]
+            # Done with it, get rid of it
+            del g_pending[self.urb.id]
+            if not keep_packet(self.submit):
+                return
+            if args.ofmt == 'JSON':
+                self.json_complete(urb)
+            
         # Find the matching submit request
-        
-        if urb.transfer_type == URB_CONTROL:
-            if urb.type == URB_SUBMIT:
-                self.processControlSubmit(urb, dat_cur)
-            elif urb.type == URB_COMPLETE:
-                self.processControlComplete(urb, dat_cur)
-            else:
-                raise Exception('Bad control URB type')
-        elif urb.transfer_type == URB_BULK:
-            if urb.type == URB_SUBMIT:
-                self.processBulkSubmit(urb, dat_cur)
-            elif urb.type == URB_COMPLETE:
-                self.processBulkComplete(urb, dat_cur)
-            else:
-                raise Exception('Bad bulk URB type')
-        
+        if self.urb.transfer_type == URB_CONTROL:
+            {URB_SUBMIT: self.processControlSubmit, URB_COMPLETE: self.processControlComplete}[self.urb.type](dat_cur)
+        elif self.urb.transfer_type == URB_BULK:
+            {URB_SUBMIT: self.processBulkSubmit, URB_COMPLETE: self.processBulkComplete}[self.urb.type](dat_cur)
+        self.submit = None
+        self.urb = None
     
-    def processControlSubmit(self, urb, dat_cur):
+    def json_complete(self):
+        # Active JSON node
+        jact = {'urb_id':self.urb.id,
+            'dev': self.urb.device,
+            'urb_bus_id': self.urb.bus_id,
+            'urb_trans_type': self.urb.type,
+            'endp_dir': bool(self.urb.m_ctrl.bRequestType & URB_TRANSFER_IN),
+            'endp': self.urb.endpoint,
+            }
+        jroot['packets'].append(jact)
+    
+    def processControlSubmit(self, dat_cur):
         pending = PendingRX()
-        pending.m_urb = urb
+        pending.m_urb = self.urb
     
         if args.verbose:
             print 'Remaining data: %d' % (len(dat_cur))
             print 'ctrlrequest: %d' % (len(urb.ctrlrequest))
-        ctrl = usb_ctrlrequest(urb.ctrlrequest[0:usb_ctrlrequest_sz])
+        ctrl = usb_ctrlrequest(self.urb.ctrlrequest[0:usb_ctrlrequest_sz])
         
         if args.verbose:
             print "Packet %d control submit (control info size %lu)" % (self.g_cur_packet, 666)
@@ -562,8 +606,8 @@ class Gen:
             dbg("%d: IN" % (self.g_cur_packet))
         else:
             dbg("%d: OUT" % (self.g_cur_packet))
-            if (len(dat_cur) != urb.data_length):
-                comment("WARNING: remaining bytes %d != expected payload out bytes %d" % (len(dat_cur), urb.data_length))
+            if (len(dat_cur) != self.urb.data_length):
+                comment("WARNING: remaining bytes %d != expected payload out bytes %d" % (len(dat_cur), self.urb.data_length))
                 UVDHexdumpCore(dat_cur, "  ")
                 #raise Exception('See above')
             pending.m_data_out = str(dat_cur)
@@ -571,39 +615,24 @@ class Gen:
         pending.m_ctrl = ctrl
         pending.packet_number = self.g_cur_packet
         if args.verbose:
-            print 'Added pending control URB %s' % urb.id
-        g_pending_control[urb.id] = pending
+            print 'Added pending control URB %s' % self.urb.id
+        g_pending[self.urb.id] = pending
 
 
-    
-    def processControlCompleteIn(self, submit, dat_cur):
+    def processControlCompleteIn(self, dat_cur):
         packet_numbering = ''
         data_size = 0
         data_str = "None"
-        max_payload_sz = submit.m_ctrl.wLength
+        max_payload_sz = self.submit.m_ctrl.wLength
         
         # Is it legal to have a 0 length control in?
-        if (submit.m_ctrl.wLength):
+        if (self.submit.m_ctrl.wLength):
             data_str = "buff"
-            data_size = submit.m_ctrl.wLength
+            data_size = self.submit.m_ctrl.wLength
         elif args.ofmt == OUTPUT_LIBUSBPY:
             data_str = "\"\""
         
-        
-        if (keep_packet(submit)):
-            printControlRequest(submit, data_str, data_size, "usb_rcvctrlpipe(%s, 0), " % (deviceStr(),) )
-        
-        '''
-        # Take off the unknown struct
-        if len(dat_cur) < control_rx_sz:
-            print "not enough data"
-            if (g_halt_error):
-                sys.exit(1)
-            return
-        
-        dat_cur = dat_cur[control_rx_sz:]
-        # Now dat_cur/len(dat_cur) is the control in data payload
-        '''
+        printControlRequest(self.submit, data_str, data_size, "usb_rcvctrlpipe(%s, 0), " % (deviceStr(),) )
         
         # Verify we actually have enough / expected
         # If exact match don't care
@@ -613,62 +642,48 @@ class Gen:
             else:
                 raise Exception('invalid response')
         
-        if (submit.m_ctrl.wLength):
+        if (self.submit.m_ctrl.wLength):
             if g_packet_numbers:
-                packet_numbering = "packet %u/%u" % (submit.packet_number, self.g_cur_packet)
+                packet_numbering = "packet %u/%u" % (self.submit.packet_number, self.g_cur_packet)
             else:
                 # TODO: consider counting instead of by captured index
                 packet_numbering = "packet"
             
     
             if args.ofmt == OUTPUT_LIBUSBPY:
-                print "validate_read(%s, buff, \"%s\")" % (bytes2AnonArray(dat_cur, "char"),  packet_numbering )
+                print "%svalidate_read(%s, buff, \"%s\")" % (indent, bytes2AnonArray(dat_cur, "char"),  packet_numbering )
             else:
-                print "validate_read(%s, %u, buff, n_rw, \"%s\");" % (bytes2AnonArray(dat_cur, "char"), packet_numbering )
+                print "%svalidate_read(%s, %u, buff, n_rw, \"%s\");" % (indent, bytes2AnonArray(dat_cur, "char"), packet_numbering )
         
     
     
-    def processControlCompleteOut(self, submit, dat_cur):
+    def processControlCompleteOut(self, dat_cur):
         data_size = 0
         data_str = "None"
         
-        print 'Control out w/ len %d' % len(submit.m_data_out)
+        #print 'Control out w/ len %d' % len(submit.m_data_out)
         
         # print "Data out size: %u vs urb size %u" % (submit.m_data_out_size, submit.m_urb.data_length )
-        if (len(submit.m_data_out)):
+        if (len(self.submit.m_data_out)):
             # Note that its the submit from earlier, not the ack that we care about
-            data_str = bytes2AnonArray(submit.m_data_out)
-            data_size = len(submit.m_data_out)
+            data_str = bytes2AnonArray(self.submit.m_data_out)
+            data_size = len(self.submit.m_data_out)
         elif args.ofmt == OUTPUT_LIBUSBPY:
             data_str = "\"\""
         
-        if keep_packet(submit):
-            printControlRequest(submit, data_str, data_size, "usb_sndctrlpipe(%s, 0), " % (deviceStr()) )
+        printControlRequest(self.submit, data_str, data_size, "usb_sndctrlpipe(%s, 0), " % (deviceStr()) )
         
-    def processControlComplete(self, urb, dat_cur):
-        if args.verbose:
-            print 'Pending control (%d):' % (len(g_pending_control),)
-            for k in g_pending_control:
-                print '  %s' % (k,)
-        if not urb.id in g_pending_control:
-            raise Exception("Packet %d missing control URB submit.  URB ID: 0x%016lX" % (self.g_cur_packet, urb.id))
-        
-        submit = g_pending_control[urb.id]
-        # Done with it, get rid of it
-        del g_pending_control[urb.id]
-        
+    def processControlComplete(self, dat_cur):
         # self.print_stat()
         
-        if not keep_packet(submit):
-            return
-        
         print
-        self.packnum(submit)
+        if g_packet_numbers:
+            self.packnum()
         
-        if (submit.m_ctrl.bRequestType & URB_TRANSFER_IN):
-            self.processControlCompleteIn(submit, dat_cur)
+        if (self.submit.m_ctrl.bRequestType & URB_TRANSFER_IN):
+            self.processControlCompleteIn(dat_cur)
         else:
-            self.processControlCompleteOut(submit, dat_cur)
+            self.processControlCompleteOut(dat_cur)
 
     def print_stat(self):
         bulk = g_payload_bytes.bulk
@@ -686,23 +701,20 @@ class Gen:
         print "        In: %u, req: %u" % (g_payload_bytes.ctrl.in_, g_payload_bytes.ctrl.req_in)
         print "        Out: %u, req: %u" % (g_payload_bytes.ctrl.out, g_payload_bytes.ctrl.req_out)
 
-    def packnum(self, submit):
-        if not g_packet_numbers:
-            return
+    def packnum(self):
         if args.ofmt == OUTPUT_LIBUSBPY:
-            print "# Generated from packet %u/%u" % (submit.packet_number, self.g_cur_packet)
+            print "%s# Generated from packet %u/%u" % (indent, self.submit.packet_number, self.g_cur_packet)
         else:
-            print "//Generated from packet %u/%u" % (submit.packet_number, self.g_cur_packet)
+            print "%s//Generated from packet %u/%u" % (indent, self.submit.packet_number, self.g_cur_packet)
 
-    def processBulkSubmit(self, urb, dat_cur):
-        if urb.type & USB_DIR_IN:
-            g_payload_bytes.bulk.req_in += urb.length
+    def processBulkSubmit(self, dat_cur):
+        if self.urb.type & USB_DIR_IN:
+            g_payload_bytes.bulk.req_in += self.urb.length
         else:
-            g_payload_bytes.bulk.req_out += urb.length        
-
+            g_payload_bytes.bulk.req_out += self.urb.length        
 
         pending = PendingRX()
-        pending.m_urb = urb
+        pending.m_urb = self.urb
     
         if args.verbose:
             print 'Remaining data: %d' % (len(dat_cur))
@@ -711,18 +723,12 @@ class Gen:
             print "Packet %d bulk submit (control info size %lu)" % (self.g_cur_packet, 666)
         
         
-        
-        
-        
-        
-        
-        
-        if urb.endpoint & URB_TRANSFER_IN:
+        if self.urb.endpoint & URB_TRANSFER_IN:
             dbg("%d: IN" % (self.g_cur_packet))
         else:
             dbg("%d: OUT" % (self.g_cur_packet))
-            if (len(dat_cur) != urb.data_length):
-                comment("WARNING: remaining bytes %d != expected payload out bytes %d" % (len(dat_cur), urb.data_length))
+            if (len(dat_cur) != self.urb.data_length):
+                comment("WARNING: remaining bytes %d != expected payload out bytes %d" % (len(dat_cur), self.urb.data_length))
                 UVDHexdumpCore(dat_cur, "  ")
                 #raise Exception('See above')
             pending.m_data_out = str(dat_cur)
@@ -730,29 +736,40 @@ class Gen:
         
         pending.packet_number = self.g_cur_packet
         if args.verbose:
-            print 'Added pending bulk URB %s' % urb.id
-        g_pending_bulk[urb.id] = pending
-
-    
+            print 'Added pending bulk URB %s' % self.urb.id
+        g_pending[self.urb.id] = pending
 
 
-
-    def processBulkCompleteIn(self, submit, dat_cur):
+    def processBulkCompleteIn(self, dat_cur):
         packet_numbering = ''
         data_size = 0
         data_str = "None"
-        max_payload_sz = submit.m_urb.length
+        max_payload_sz = self.submit.m_urb.length
         
+        # FIXME: this is a messy conversion artfact from the C code
         # Is it legal to have a 0 length bulk in?
-        if (max_payload_sz):
+        if args.ofmt == 'JSON':
+            pass
+        elif max_payload_sz:
             data_str = "buff"
             data_size = max_payload_sz
         elif args.ofmt == OUTPUT_LIBUSBPY:
             data_str = "\"\""
         
         
-        if (keep_packet(submit)):
-            printBulkRequest(submit, data_str, data_size)
+        
+        if args.ofmt == OUTPUT_LIBUSBPY:
+            # def bulkRead(self, endpoint, length, timeout=0):
+            print "%sbuff = dev.bulkRead(0x%02X, 0x%04X)" % (indent, self.submit.m_urb.endpoint, data_size)
+        elif args.ofmt == 'JSON':
+            pass
+        else:
+            '''
+            int LIBUSB_CALL libusb_bulk_transfer(libusb_device_handle *dev_handle,
+                unsigned char endpoint, unsigned char *data, int length,
+                int *actual_length, unsigned int timeout);
+            '''
+            raise Exception('FIXME')
         
         '''
         # Take off the unknown struct
@@ -776,62 +793,56 @@ class Gen:
         
         if (max_payload_sz):
             if g_packet_numbers:
-                packet_numbering = "packet %u/%u" % (submit.packet_number, self.g_cur_packet)
+                packet_numbering = "packet %u/%u" % (self.submit.packet_number, self.g_cur_packet)
             else:
                 # TODO: consider counting instead of by captured index
                 packet_numbering = "packet"
             
     
             if args.ofmt == OUTPUT_LIBUSBPY:
-                print "validate_read(%s, buff, \"%s\")" % (bytes2AnonArray(dat_cur, "char"),  packet_numbering )
+                print "%svalidate_read(%s, buff, \"%s\")" % (indent, bytes2AnonArray(dat_cur, "char"),  packet_numbering )
             else:
-                print "validate_read(%s, %u, buff, n_rw, \"%s\");" % (bytes2AnonArray(dat_cur, "char"), packet_numbering )
+                print "%svalidate_read(%s, %u, buff, n_rw, \"%s\");" % (indent, bytes2AnonArray(dat_cur, "char"), packet_numbering )
         
     
     
-    def processBulkCompleteOut(self, submit, dat_cur):
+    def processBulkCompleteOut(self, dat_cur):
         data_size = 0
         data_str = "None"
         
-        # print "Data out size: %u vs urb size %u" % (submit.m_data_out_size, submit.m_urb.data_length )
-        if (len(submit.m_data_out)):
+        # print "Data out size: %u vs urb size %u" % (submit.m_data_out_size, self.submit.m_urb.data_length )
+        if (len(self.submit.m_data_out)):
             # Note that its the submit from earlier, not the ack that we care about
-            data_str = bytes2AnonArray(submit.m_data_out)
-            data_size = len(submit.m_data_out)
+            data_str = bytes2AnonArray(self.submit.m_data_out)
+            data_size = len(self.submit.m_data_out)
         elif args.ofmt == OUTPUT_LIBUSBPY:
             data_str = "\"\""
         
-        if keep_packet(submit):
-            printBulkRequest(submit, data_str, data_size)
+        if args.ofmt == OUTPUT_LIBUSBPY: 
+            # def bulkWrite(self, endpoint, data, timeout=0):
+            print "%sdev.bulkWrite(0x%02X, %s)" % (indent, self.submit.m_urb.endpoint, data_str)
+        else:
+            '''
+            int LIBUSB_CALL libusb_bulk_transfer(libusb_device_handle *dev_handle,
+                unsigned char endpoint, unsigned char *data, int length,
+                int *actual_length, unsigned int timeout);
+            '''
+            raise Exception('FIXME')
 
-    def processBulkComplete(self, urb, dat_cur):
-        if args.verbose:
-            print 'Pending bulk (%d):' % (len(g_pending_bulk),)
-            for k in g_pending_bulk:
-                print '  %s' % (k,)
-        if not urb.id in g_pending_bulk:
-            raise Exception("Packet %d missing bulk URB submit.  URB ID: 0x%016lX" % (self.g_cur_packet, urb.id))
-        
-        submit = g_pending_bulk[urb.id]
-        # Done with it, get rid of it
-        del g_pending_bulk[urb.id]
-        
+    def processBulkComplete(self, dat_cur):
         # self.print_stat()
         
-        if not keep_packet(submit):
-            return
-        
         print
-        self.packnum(submit)
+        if g_packet_numbers:
+            self.packnum()
 
-        if urb.endpoint & USB_DIR_IN:
-            g_payload_bytes.bulk.in_ += urb.data_length
-            self.processBulkCompleteIn(submit, dat_cur)
+        if self.urb.endpoint & USB_DIR_IN:
+            g_payload_bytes.bulk.in_ += self.urb.data_length
+            self.processBulkCompleteIn(dat_cur)
         else:
-            g_payload_bytes.bulk.out += urb.data_length
-            self.processBulkCompleteOut(submit, dat_cur)
+            g_payload_bytes.bulk.out += self.urb.data_length
+            self.processBulkCompleteOut(dat_cur)
     
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Replay captured USB packets')
@@ -839,7 +850,7 @@ if __name__ == "__main__":
     parser.add_argument('-k', dest='ofmt', default='LIBUSBPY', action='store_const', const='LINUX', help='output linux kenrel')
     parser.add_argument('-l', dest='ofmt', action='store_const', const='LIBUSB', help='output libusb')
     parser.add_argument('-p', dest='ofmt', action='store_const', const='LIBUSBPY', help='output libusb python')
-    
+    parser.add_argument('-j', dest='ofmt', action='store_const', const='JSON', help='output data as JSON')
     parser.add_argument('-s', help='allow short')
     parser.add_argument('-f', help='custom call')
     parser.add_argument('-n', help='packet numbers')
@@ -859,12 +870,30 @@ if __name__ == "__main__":
         else:
             g_max_packet = int(g_max_packet, 0)
         
+    if args.ofmt == 'JSON':
+        jroot = {'packets':{}}
+        # Active JSON node
+        jact = jroot
 
     comment("Generated by uvusbreplay %s" % (VERSION_STR,))
     comment("uvusbreplay copyright 2011 John McMaster <JohnDMcMaster@gmail.com>")
     # comment("Date: %s" % (UVDCurDateTime()))
     comment("Source data: %s" % (args.fin,))
     comment("Source range: %s - %s" % (g_min_packet, g_max_packet))
+    if args.ofmt == OUTPUT_LIBUSBPY:
+        print '''        
+import binascii
+
+def validate_read(expected, actual, msg):
+    if expected != actual:
+        print 'Failed %s' % msg
+        print '  Expected; %s' % binascii.hexlify(expected,)
+        print '  Actual:   %s' % binascii.hexlify(actual,)
+        #raise Exception('failed validate: %s' % msg)
+
+'''
+    print 'def main(dev):'
+
     if args.ofmt != 'LIBUSBPY':
         print "int n_rw = 0;"
         print "uint8_t buff[4096];"
@@ -891,10 +920,8 @@ if __name__ == "__main__":
     gen = Gen()
     p.loop(-1, gen.loop_cb)
     
-    if len(g_pending_control) != 0:
-        comment("WARNING: %lu pending control requests" % (len(g_pending_control)))
-    if len(g_pending_bulk) != 0:
-        comment("WARNING: %lu pending bulk requests" % (len(g_pending_control)))
+    if len(g_pending) != 0:
+        comment("WARNING: %lu pending requests" % (len(g_pending)))
     
     # Makes copy/pasting easier in some editors...
     print ""
