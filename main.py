@@ -1,17 +1,8 @@
 #!/usr/bin/env python
 
 '''
-2:30: keish into oven
-
-
 uvusbreplay-py 01_prog2.cap
 sudo pip install pycap
-
-I write a lot of nice code...this is not bad but not pretty either
-
-Wanted to do this in python but couldn't get python bindings to work even after trying newest version of libpcap
-Expect the Lua bindings are out of date and I don't feel like messing with them
-Python is good for dev, but SIGSEGV in Python is ugly...
 '''
 
 import pcap
