@@ -29,7 +29,6 @@ g_halt_error = True
 g_allow_short = False
 g_custom_call = False
 g_use_defines = False
-g_packet_numbers = True
 
 VERSION_STR    = "0.1"
 indent = ""
@@ -235,10 +234,10 @@ def printControlRequest(submit, data_str, data_size, pipe_str):
         #std::string bRequestStr = get_request_str( submit.m_ctrl.bRequestType, submit.m_ctrl.bRequest )
         #std::string bRequestTypeStr = get_request_type_str(submit.m_ctrl.bRequestType)
         if (submit.m_ctrl.bRequestType & URB_TRANSFER_IN):
-            print "%sbuff = dev.controlRead(0x%02X, 0x%02X, 0x%04X, 0x%04X, %u)" % (indent, submit.m_ctrl.bRequestType, submit.m_ctrl.bRequest,
+            print "%sbuff = controlRead(0x%02X, 0x%02X, 0x%04X, 0x%04X, %u)" % (indent, submit.m_ctrl.bRequestType, submit.m_ctrl.bRequest,
                     submit.m_ctrl.wValue, submit.m_ctrl.wIndex, data_size)
         else:
-            print "%sdev.controlWrite(0x%02X, 0x%02X, 0x%04X, 0x%04X, %s)" % (indent, submit.m_ctrl.bRequestType, submit.m_ctrl.bRequest,
+            print "%scontrolWrite(0x%02X, 0x%02X, 0x%04X, 0x%04X, %s)" % (indent, submit.m_ctrl.bRequestType, submit.m_ctrl.bRequest,
                     submit.m_ctrl.wValue, submit.m_ctrl.wIndex, data_str)
     elif args.ofmt == 'JSON':
         # FIXME
@@ -651,7 +650,7 @@ class Gen:
                 raise Exception('invalid response')
         
         if (self.submit.m_ctrl.wLength):
-            if g_packet_numbers:
+            if args.packet_numbers:
                 packet_numbering = "packet %u/%u" % (self.submit.packet_number, self.g_cur_packet)
             else:
                 # TODO: consider counting instead of by captured index
@@ -687,7 +686,7 @@ class Gen:
         
         if args.ofmt in ('LINUX', 'LIBUSB'):
             print
-        if g_packet_numbers:
+        if args.packet_numbers:
             self.packnum()
         
         if (self.submit.m_ctrl.bRequestType & URB_TRANSFER_IN):
@@ -774,7 +773,7 @@ class Gen:
             pass
         elif args.ofmt == OUTPUT_LIBUSBPY:
             # def bulkRead(self, endpoint, length, timeout=0):
-            print "%sbuff = dev.bulkRead(0x%02X, 0x%04X)" % (indent, self.submit.m_urb.endpoint, data_size)
+            print "%sbuff = bulkRead(0x%02X, 0x%04X)" % (indent, self.submit.m_urb.endpoint, data_size)
         elif args.ofmt == 'JSON':
             jact['S'] = {
                 "raw":binascii.hexlify(self.submit.raw), 
@@ -839,7 +838,7 @@ class Gen:
                 raise Exception('invalid response')
         
         if max_payload_sz:
-            if g_packet_numbers:
+            if args.packet_numbers:
                 packet_numbering = "packet %u/%u" % (self.submit.packet_number, self.g_cur_packet)
             else:
                 # TODO: consider counting instead of by captured index
@@ -865,7 +864,7 @@ class Gen:
             # Note that its the submit from earlier, not the ack that we care about
             data_str = bytes2AnonArray(self.submit.m_data_out)
             # def bulkWrite(self, endpoint, data, timeout=0):
-            print "%sdev.bulkWrite(0x%02X, %s)" % (indent, self.submit.m_urb.endpoint, data_str)
+            print "%sbulkWrite(0x%02X, %s)" % (indent, self.submit.m_urb.endpoint, data_str)
         elif args.ofmt == 'JSON':
             jact['S'] = {
                 "raw":binascii.hexlify(self.submit.raw), 
@@ -915,7 +914,7 @@ class Gen:
         
         if args.ofmt in ('LINUX', 'LIBUSB'):
             print
-        if g_packet_numbers:
+        if args.packet_numbers:
             self.packnum()
 
         if self.urb.endpoint & USB_DIR_IN:
@@ -935,7 +934,7 @@ if __name__ == "__main__":
     parser.add_argument('-j', dest='ofmt', action='store_const', const='JSON', help='output data as JSON')
     parser.add_argument('-s', help='allow short')
     parser.add_argument('-f', help='custom call')
-    parser.add_argument('-n', help='packet numbers')
+    parser.add_argument('--packet-numbers', action='store_false', help='no packet numbers')
     parser.add_argument('--bulk-dir', help='bulk data .bin dir')
     parser.add_argument('--verbose', '-v', action='store_true', help='verbose')
 
@@ -982,6 +981,34 @@ def validate_read(expected, actual, msg):
     if args.ofmt == 'LIBUSBPY':
         print 'def main(dev):'
         indent = "    "
+        print '''\
+    def bulkRead(endpoint, length, timeout=None):
+        if timeout is None:
+            timeout = 1000
+        return dev.bulkRead(endpoint, length, timeout=timeout)
+
+    def bulkWrite(endpoint, data, timeout=None):
+        if timeout is None:
+            timeout = 1000
+        dev.bulkWrite(endpoint, data, timeout=timeout)
+    
+    def controlRead(request_type, request, value, index, length,
+                    timeout=None):
+        if timeout is None:
+            timeout = 1000
+        return dev.controlRead(request_type, request, value, index, length,
+                    timeout=timeout)
+
+    def controlWrite(request_type, request, value, index, data,
+                     timeout=None):
+        if timeout is None:
+            timeout = 1000
+        dev.controlWrite(request_type, request, value, index, data,
+                     timeout=timeout)
+'''
+
+
+
 
     if args.ofmt in ('LINUX', 'LIBUSB'):
         print "int n_rw = 0;"
