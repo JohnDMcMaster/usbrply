@@ -13,6 +13,7 @@ import struct
 from collections import namedtuple
 import json
 import os
+import errno
 
 # Linux kernel
 OUTPUT_LINUX = 'LINUX'
@@ -507,17 +508,21 @@ class Gen:
             //uint8_t pad[24]
         } __attribute__((packed)) usb_urb_t
         '''
-        usb_urb_nt = namedtuple('usb_urb', ('id',
+        usb_urb_nt = namedtuple('usb_urb', (
+                'id',
                 'type',
                 'transfer_type',
                 'endpoint',
+                
                 'device',
                 'bus_id',
                 'setup_request',
                 'data',
+                
                 'sec',
                 'usec',
                 'status',
+                
                 # Control: requested data length
                 # Complete: identical to data_length?
                 'length',
@@ -527,7 +532,24 @@ class Gen:
                 # TODO: check how these are used in bulk requests
                 # If it is the same, they should be merged into this structure
                 'ctrlrequest',))
-        usb_urb_fmt = '<QBBBBHBBQIIII24s'
+        usb_urb_fmt = ('<'
+                'Q' # id
+                'B'
+                'B'
+                'B'
+                
+                'B' # device
+                'H'
+                'B'
+                'B'
+                
+                'Q' # sec
+                'I'
+                'i'
+                
+                'I' # length
+                'I'
+                '24s')
         usb_urb_sz = struct.calcsize(usb_urb_fmt)
         def usb_urb(s):
             return  usb_urb_nt(*struct.unpack(usb_urb_fmt, str(s)))
@@ -586,6 +608,9 @@ class Gen:
                         raise Exception("bad calc: %s" % dt)
                     elif dt >= 0.001:
                         print '%stime.sleep(%.3f)' % (indent, dt)
+            if self.urb.status != 0:
+                print '%s# WARNING: complete code %s (%s)' % (indent, self.urb.status,  errno.errorcode.get(-self.urb.status, "unknown"))
+            
             self.previous_urb_complete_kept = self.urb
             
         # Find the matching submit request
