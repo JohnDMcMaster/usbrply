@@ -439,6 +439,7 @@ def UVDHexdumpCore(*args):
 class Gen:
     def __init__(self):
         self.g_cur_packet = 0
+        self.previous_urb_complete_kept = None
         
         
     '''
@@ -565,6 +566,27 @@ class Gen:
                 return
             if args.ofmt == 'JSON':
                 self.json_complete()
+
+            if self.previous_urb_complete_kept is not None:
+                '''
+                For bulk packets this can get tricky
+                The intention was mostly for control packets where timing might be more critical
+                '''
+                if args.sleep and args.ofmt == OUTPUT_LIBUSBPY:
+                    prev = self.previous_urb_complete_kept
+                    
+                    # mind order of operations here...was having round off issues
+                    ds = self.submit.m_urb.sec - prev.sec
+                    dt = ds + self.submit.m_urb.usec/1.e6 - prev.usec/1.e6
+                    if dt < -1.e-6:
+                        print 'prev sec: %s' % prev.sec
+                        print 'prev usec: %s' % prev.usec
+                        print 'this sec: %s' % self.submit.m_urb.sec
+                        print 'this usec: %s' % self.submit.m_urb.usec
+                        raise Exception("bad calc: %s" % dt)
+                    elif dt >= 0.001:
+                        print '%stime.sleep(%.3f)' % (indent, dt)
+            self.previous_urb_complete_kept = self.urb
             
         # Find the matching submit request
         if self.urb.transfer_type == URB_CONTROL:
@@ -937,6 +959,7 @@ if __name__ == "__main__":
     parser.add_argument('--packet-numbers', action='store_false', help='no packet numbers')
     parser.add_argument('--bulk-dir', help='bulk data .bin dir')
     parser.add_argument('--verbose', '-v', action='store_true', help='verbose')
+    parser.add_argument('--sleep', action='store_true', help='Insert sleep statements between packets to keep original timing')
 
     parser.add_argument('fin', help='File name in')
     args = parser.parse_args()
@@ -969,6 +992,7 @@ if __name__ == "__main__":
     if args.ofmt == OUTPUT_LIBUSBPY:
         print '''        
 import binascii
+import time
 
 def validate_read(expected, actual, msg):
     if expected != actual:
@@ -1006,9 +1030,6 @@ def validate_read(expected, actual, msg):
         dev.controlWrite(request_type, request, value, index, data,
                      timeout=timeout)
 '''
-
-
-
 
     if args.ofmt in ('LINUX', 'LIBUSB'):
         print "int n_rw = 0;"
