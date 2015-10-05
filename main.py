@@ -311,28 +311,30 @@ def deviceStr():
     return "udev"
 
 def request2str(ctrl):
-    bRequestType = ctrl.bRequestType & USB_TYPE_MASK
+    reqType = ctrl.bRequestType & USB_TYPE_MASK
     m = {
         USB_TYPE_STANDARD: {
-            USB_REQ_GET_STATUS:         "USB_REQ_GET_STATUS",
-            USB_REQ_CLEAR_FEATURE:      "USB_REQ_CLEAR_FEATURE",
-            USB_REQ_SET_FEATURE:        "USB_REQ_SET_FEATURE",
-            USB_REQ_SET_ADDRESS:        "USB_REQ_SET_ADDRESS",
-            USB_REQ_GET_DESCRIPTOR:     "USB_REQ_GET_DESCRIPTOR",
-            USB_REQ_SET_DESCRIPTOR:     "USB_REQ_SET_DESCRIPTOR",
-            USB_REQ_GET_CONFIGURATION:  "USB_REQ_GET_CONFIGURATION",
-            USB_REQ_SET_CONFIGURATION:  "USB_REQ_SET_CONFIGURATION",
-            USB_REQ_GET_INTERFACE:      "USB_REQ_GET_INTERFACE",
-            USB_REQ_SET_INTERFACE:      "USB_REQ_SET_INTERFACE",
-            USB_REQ_SYNCH_FRAME:        "USB_REQ_SYNCH_FRAME",  
+            USB_REQ_SET_FEATURE:        "SET_FEATURE",
+            USB_REQ_SET_ADDRESS:        "SET_ADDRESS",
+            USB_REQ_GET_DESCRIPTOR:     "GET_DESCRIPTOR",
+            USB_REQ_SET_DESCRIPTOR:     "SET_DESCRIPTOR",
+            USB_REQ_GET_CONFIGURATION:  "GET_CONFIGURATION",
+            USB_REQ_SET_CONFIGURATION:  "SET_CONFIGURATION",
+            USB_REQ_GET_INTERFACE:      "GET_INTERFACE",
+            USB_REQ_SET_INTERFACE:      "SET_INTERFACE",
+            USB_REQ_SYNCH_FRAME:        "SYNCH_FRAME",  
+        },
+        USB_TYPE_CLASS: {
+            USB_REQ_GET_STATUS:         "GET_STATUS",
+            USB_REQ_CLEAR_FEATURE:      "CLEAR_FEATURE",
         }
     }
-    n = m.get(bRequestType, None)
-    if n is None:
-        return "0x%02X" % bRequest
-    ret = n[ctrl.bRequest]
-    if bRequestType == USB_TYPE_STANDARD and ctrl.bRequest == USB_REQ_SET_ADDRESS:
-        ret += ' 0x%02x (%d)' % (ctrl.wValue, ctrl.wValue)
+    n = m.get(reqType, None)
+    if n is None or not ctrl.bRequest in n:
+        return "Unknown standard request"
+    ret = '%s (0x%02X)' % (n[ctrl.bRequest], ctrl.bRequest)
+    if reqType == USB_TYPE_STANDARD and ctrl.bRequest == USB_REQ_SET_ADDRESS:
+        ret += ': 0x%02x/%d' % (ctrl.wValue, ctrl.wValue)
     return ret
 
 
@@ -523,7 +525,7 @@ class Gen:
             # for some reason usbmon will ocassionally give packets out of order
             if not self.urb.id in g_pending:
                 #raise Exception("Packet %d missing submit.  URB ID: 0x%016lX" % (self.g_cur_packet, self.urb.id))
-                print "    WARNING: Packet %d missing submit.  URB ID: 0x%016lX" % (self.g_cur_packet, self.urb.id)
+                comment("WARNING: Packet %d missing submit.  URB ID: 0x%016lX" % (self.g_cur_packet, self.urb.id))
                 self.pending_complete[self.urb.id] = (self.urb, dat_cur)
             else:
                 self.process_complete(dat_cur)
@@ -690,7 +692,7 @@ class Gen:
             print
         self.packnum()
 
-        if args.comment and self.submit.m_ctrl.bRequestType == USB_TYPE_STANDARD:
+        if args.comment and (self.submit.m_ctrl.bRequestType & USB_TYPE_MASK in (USB_TYPE_STANDARD, USB_TYPE_CLASS)):
             comment("%s" % (request2str(self.submit.m_ctrl)))
         
         if self.submit.m_ctrl.bRequestType & URB_TRANSFER_IN:
