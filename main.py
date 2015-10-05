@@ -24,11 +24,6 @@ OUTPUT_LIBUSBPY = 'LIBUSBPY'
 
 g_min_packet = 0
 g_max_packet = float('inf')
-g_error = False
-g_halt_error = True
-g_allow_short = False
-g_custom_call = False
-g_use_defines = False
 
 VERSION_STR    = "0.1"
 indent = ""
@@ -52,6 +47,52 @@ possible event type
 URB_SUBMIT =        ord('S')
 URB_COMPLETE =      ord('C')
 URB_ERROR =         ord('E')
+
+urb_type2str = {
+        URB_SUBMIT: 'URB_SUBMIT',
+        URB_COMPLETE: 'URB_COMPLETE',
+        URB_ERROR: 'URB_ERROR',
+        }
+
+
+transfer2str = {
+        URB_ISOCHRONOUS: "URB_ISOCHRONOUS",
+        URB_INTERRUPT: "URB_INTERRUPT",
+        URB_CONTROL: "URB_CONTROL",
+        URB_BULK: "URB_BULK",
+        }
+
+USB_REQ_GET_STATUS =        0x00
+USB_REQ_CLEAR_FEATURE =     0x01
+# 0x02 is reserved
+USB_REQ_SET_FEATURE =       0x03
+# 0x04 is reserved
+USB_REQ_SET_ADDRESS =       0x05
+USB_REQ_GET_DESCRIPTOR =    0x06
+USB_REQ_SET_DESCRIPTOR =    0x07
+USB_REQ_GET_CONFIGURATION = 0x08
+USB_REQ_SET_CONFIGURATION = 0x09
+USB_REQ_GET_INTERFACE =     0x0A
+USB_REQ_SET_INTERFACE =     0x0B
+USB_REQ_SYNCH_FRAME =       0x0C
+
+USB_DIR_OUT =               0       # to device
+USB_DIR_IN =                0x80    # to host
+
+USB_TYPE_MASK =             (0x03 << 5)
+USB_TYPE_STANDARD =         (0x00 << 5)
+USB_TYPE_CLASS =            (0x01 << 5)
+USB_TYPE_VENDOR =           (0x02 << 5)
+USB_TYPE_RESERVED =         (0x03 << 5)
+
+USB_RECIP_MASK =            0x1f
+USB_RECIP_DEVICE =          0x00
+USB_RECIP_INTERFACE =       0x01
+USB_RECIP_ENDPOINT =        0x02
+USB_RECIP_OTHER =           0x03
+# From Wireless USB 1.0
+USB_RECIP_PORT =            0x04
+USB_RECIP_RPIPE =           0x05
 
 
 def dbg(s):
@@ -80,6 +121,13 @@ class PendingRX:
         
         # uint8_t *m_data_out
         self.m_data_out = None
+
+def add_bool_arg(parser, yes_arg, default=False, **kwargs):
+    dashed = yes_arg.replace('--', '')
+    dest = dashed.replace('-', '_')
+    parser.add_argument(yes_arg, dest=dest, action='store_true', default=default, **kwargs)
+    kwargs['help'] = 'Disable above'
+    parser.add_argument('--no-' + dashed, dest=dest, action='store_false', **kwargs)
 
 # Pending requests
 # Typically size 0-1 but sometimes more pile up
@@ -137,9 +185,6 @@ usb_ctrlrequest_sz = struct.calcsize(usb_ctrlrequest_fmt)
 def usb_ctrlrequest(s):
     return  usb_ctrlrequest_nt(*struct.unpack(usb_ctrlrequest_fmt, str(s)))
 
-
-
-
 '''
 //TODO; figure out what this actually is
 typedef struct {
@@ -185,7 +230,7 @@ def printControlRequest(submit, data_str, data_size, pipe_str):
     elif args.ofmt == OUTPUT_LIBUSBPY:
         #std::string bRequestStr = get_request_str( submit.m_ctrl.bRequestType, submit.m_ctrl.bRequest )
         #std::string bRequestTypeStr = get_request_type_str(submit.m_ctrl.bRequestType)
-        if (submit.m_ctrl.bRequestType & URB_TRANSFER_IN):
+        if submit.m_ctrl.bRequestType & URB_TRANSFER_IN:
             print "%sbuff = controlRead(0x%02X, 0x%02X, 0x%04X, 0x%04X, %u)" % (indent, submit.m_ctrl.bRequestType, submit.m_ctrl.bRequest,
                     submit.m_ctrl.wValue, submit.m_ctrl.wIndex, data_size)
         else:
@@ -196,7 +241,7 @@ def printControlRequest(submit, data_str, data_size, pipe_str):
         out = ''
     
         out += "n_rw = "
-        if (g_custom_call):
+        if args.cc:
             out += "dev_ctrl_msg("
         else:
             device_str = "g_dev"
@@ -210,7 +255,7 @@ def printControlRequest(submit, data_str, data_size, pipe_str):
         bRequestStr = request_type2str[ self.submit.m_ctrl.bRequestType, self.submit.m_ctrl.bRequest ]
         bRequestTypeStr = ""
         
-        if args.ofmt == OUTPUT_LIBUSB and not g_use_defines:
+        if args.ofmt == OUTPUT_LIBUSB and not args.define:
             bRequestTypeStr = "0x%02X" % self.submit.m_ctrl.bRequestType
         else:
             bRequestTypeStr = request_type2str[self.submit.m_ctrl.bRequestType]
@@ -222,7 +267,7 @@ def printControlRequest(submit, data_str, data_size, pipe_str):
             out += "%s, %s, " % (bRequestStr, bRequestTypeStr)
         
         
-        if (g_custom_call):
+        if args.cc:
             timeout = ""
         else:
             timeout = ", 500"
@@ -265,57 +310,8 @@ def deviceStr():
     # return "dev.udev"
     return "udev"
 
-
-urb_type2str = {
-        URB_SUBMIT: 'URB_SUBMIT',
-        URB_COMPLETE: 'URB_COMPLETE',
-        URB_ERROR: 'URB_ERROR',
-        }
-
-
-transfer2str = {
-        URB_ISOCHRONOUS: "URB_ISOCHRONOUS",
-        URB_INTERRUPT: "URB_INTERRUPT",
-        URB_CONTROL: "URB_CONTROL",
-        URB_BULK: "URB_BULK",
-        }
-
-
-USB_REQ_GET_STATUS =        0x00
-USB_REQ_CLEAR_FEATURE =     0x01
-# 0x02 is reserved
-USB_REQ_SET_FEATURE =       0x03
-# 0x04 is reserved
-USB_REQ_SET_ADDRESS =       0x05
-USB_REQ_GET_DESCRIPTOR =    0x06
-USB_REQ_SET_DESCRIPTOR =    0x07
-USB_REQ_GET_CONFIGURATION = 0x08
-USB_REQ_SET_CONFIGURATION = 0x09
-USB_REQ_GET_INTERFACE =     0x0A
-USB_REQ_SET_INTERFACE =     0x0B
-USB_REQ_SYNCH_FRAME =       0x0C
-
-USB_DIR_OUT =               0       # to device
-USB_DIR_IN =                0x80    # to host
-
-USB_TYPE_MASK =             (0x03 << 5)
-USB_TYPE_STANDARD =         (0x00 << 5)
-USB_TYPE_CLASS =            (0x01 << 5)
-USB_TYPE_VENDOR =           (0x02 << 5)
-USB_TYPE_RESERVED =         (0x03 << 5)
-
-USB_RECIP_MASK =            0x1f
-USB_RECIP_DEVICE =          0x00
-USB_RECIP_INTERFACE =       0x01
-USB_RECIP_ENDPOINT =        0x02
-USB_RECIP_OTHER =           0x03
-# From Wireless USB 1.0
-USB_RECIP_PORT =            0x04
-USB_RECIP_RPIPE =           0x05
-
-
-def request2str(bRequestType, bRequest):
-    bRequestType = bRequestType & USB_TYPE_MASK
+def request2str(ctrl):
+    bRequestType = ctrl.bRequestType & USB_TYPE_MASK
     m = {
         USB_TYPE_STANDARD: {
             USB_REQ_GET_STATUS:         "USB_REQ_GET_STATUS",
@@ -334,7 +330,10 @@ def request2str(bRequestType, bRequest):
     n = m.get(bRequestType, None)
     if n is None:
         return "0x%02X" % bRequest
-    return n[bRequest]
+    ret = n[ctrl.bRequest]
+    if bRequestType == USB_TYPE_STANDARD and ctrl.bRequest == USB_REQ_SET_ADDRESS:
+        ret += ' 0x%02x (%d)' % (ctrl.wValue, ctrl.wValue)
+    return ret
 
 
 def request_type2str(bRequestType):
@@ -417,7 +416,6 @@ class Gen:
         '''
         if caplen != len(packet):
             print "packet %d: malformed, caplen %d != len %d", self.g_cur_packet, caplen, len(packet)
-            g_error = True
             return
         if args.verbose:
             print 'Len: %d' % len(packet)
@@ -514,7 +512,7 @@ class Gen:
         
         if self.urb.type == URB_ERROR:
             print "oh noes!"
-            if (g_halt_error):
+            if args.halt:
                 sys.exit(1)
             
         if self.urb.type == URB_COMPLETE:
@@ -611,7 +609,7 @@ class Gen:
         if args.verbose:
             print "Packet %d control submit (control info size %lu)" % (self.g_cur_packet, 666)
             print "    bRequestType: %s (0x%02X)" % (request_type2str(ctrl.bRequestType), ctrl.bRequestType)
-            print "    bRequest: %s (0x%02X)" % (request2str(ctrl.bRequestType, ctrl.bRequest ), ctrl.bRequest)
+            print "    bRequest: %s (0x%02X)" % (request2str(ctrl), ctrl.bRequest)
             print "    wValue: 0x%04X" % (ctrl.wValue)
             print "    wIndex: 0x%04X" % (ctrl.wIndex)
             print "    wLength: 0x%04X" % (ctrl.wLength)
@@ -620,7 +618,7 @@ class Gen:
             dbg("%d: IN" % (self.g_cur_packet))
         else:
             dbg("%d: OUT" % (self.g_cur_packet))
-            if (len(dat_cur) != self.urb.data_length):
+            if len(dat_cur) != self.urb.data_length:
                 comment("WARNING: remaining bytes %d != expected payload out bytes %d" % (len(dat_cur), self.urb.data_length))
                 UVDHexdumpCore(dat_cur, "  ")
                 #raise Exception('See above')
@@ -640,7 +638,7 @@ class Gen:
         max_payload_sz = self.submit.m_ctrl.wLength
         
         # Is it legal to have a 0 length control in?
-        if (self.submit.m_ctrl.wLength):
+        if self.submit.m_ctrl.wLength:
             data_str = "buff"
             data_size = self.submit.m_ctrl.wLength
         elif args.ofmt == OUTPUT_LIBUSBPY:
@@ -650,13 +648,13 @@ class Gen:
         
         # Verify we actually have enough / expected
         # If exact match don't care
-        if (len(dat_cur) != max_payload_sz):
+        if len(dat_cur) != max_payload_sz:
             if len(dat_cur) < max_payload_sz:
                 comment("NOTE:: req max %u but got %u" % (max_payload_sz, len(dat_cur)))
             else:
                 raise Exception('invalid response')
         
-        if (self.submit.m_ctrl.wLength):
+        if self.submit.m_ctrl.wLength:
             if args.packet_numbers:
                 packet_numbering = "packet %u/%u" % (self.submit.packet_number, self.g_cur_packet)
             else:
@@ -676,7 +674,7 @@ class Gen:
         #print 'Control out w/ len %d' % len(submit.m_data_out)
         
         # print "Data out size: %u vs urb size %u" % (submit.m_data_out_size, submit.m_urb.data_length )
-        if (len(self.submit.m_data_out)):
+        if len(self.submit.m_data_out):
             # Note that its the submit from earlier, not the ack that we care about
             data_str = bytes2AnonArray(self.submit.m_data_out)
             data_size = len(self.submit.m_data_out)
@@ -691,8 +689,11 @@ class Gen:
         if args.ofmt in ('LINUX', 'LIBUSB'):
             print
         self.packnum()
+
+        if args.comment and self.submit.m_ctrl.bRequestType == USB_TYPE_STANDARD:
+            comment("%s" % (request2str(self.submit.m_ctrl)))
         
-        if (self.submit.m_ctrl.bRequestType & URB_TRANSFER_IN):
+        if self.submit.m_ctrl.bRequestType & URB_TRANSFER_IN:
             self.processControlCompleteIn(dat_cur)
         else:
             self.processControlCompleteOut(dat_cur)
@@ -751,7 +752,7 @@ class Gen:
             dbg("%d: IN" % (self.g_cur_packet))
         else:
             dbg("%d: OUT" % (self.g_cur_packet))
-            if (len(dat_cur) != self.urb.data_length):
+            if len(dat_cur) != self.urb.data_length:
                 comment("WARNING: remaining bytes %d != expected payload out bytes %d" % (len(dat_cur), self.urb.data_length))
                 UVDHexdumpCore(dat_cur, "  ")
                 #raise Exception('See above')
@@ -797,7 +798,7 @@ class Gen:
         # Take off the unknown struct
         if len(dat_cur) < control_rx_sz:
             print "not enough data"
-            if (g_halt_error):
+            if args.halt:
                 sys.exit(1)
             return
         
@@ -807,7 +808,7 @@ class Gen:
         
         # Verify we actually have enough / expected
         # If exact match don't care
-        if (len(dat_cur) != max_payload_sz):
+        if len(dat_cur) != max_payload_sz:
             if len(dat_cur) < max_payload_sz:
                 comment("NOTE:: req max %u but got %u" % (max_payload_sz, len(dat_cur)))
             else:
@@ -877,10 +878,15 @@ if __name__ == "__main__":
     parser.add_argument('-p', dest='ofmt', action='store_const', const='LIBUSBPY', help='output libusb python')
     parser.add_argument('-s', help='allow short')
     parser.add_argument('-f', help='custom call')
-    parser.add_argument('--packet-numbers', action='store_false', help='no packet numbers')
+    add_bool_arg(parser, '--packet-numbers', default=True, help='print packet numbers') 
     parser.add_argument('--bulk-dir', help='bulk data .bin dir')
     parser.add_argument('--verbose', '-v', action='store_true', help='verbose')
-    parser.add_argument('--sleep', action='store_true', help='Insert sleep statements between packets to keep original timing')
+    add_bool_arg(parser, '--sleep', default=False, help='Insert sleep statements between packets to keep original timing')
+    add_bool_arg(parser, '--comment', default=False, help='General comments')
+    add_bool_arg(parser, '--fx2', default=False, help='FX2 comments')
+    add_bool_arg(parser, '--define', default=False, help='Use defines instead of raw numbers')
+    add_bool_arg(parser, '--halt', default=True, help='Halt on errors')
+    add_bool_arg(parser, '--cc', default=False, help='Custom call output')
     parser.add_argument('--device', type=int, default=None, help='Only keep packets for given device')
 
     parser.add_argument('fin', help='File name in')
@@ -952,7 +958,7 @@ def validate_read(expected, actual, msg):
         print "int n_rw = 0;"
         print "uint8_t buff[4096];"
     
-    if args.ofmt == 'LIBUSB' and g_use_defines:
+    if args.ofmt == 'LIBUSB' and args.define:
         # Libusb expects users to hard code these into address I guess
         print "# Directions"
         print "# to device"
@@ -980,6 +986,3 @@ def validate_read(expected, actual, msg):
     # Makes copy/pasting easier in some editors...
     print ""
     comment('Done!')
-    
-
-
