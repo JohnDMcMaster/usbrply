@@ -625,7 +625,8 @@ class Gen:
                         raise Exception("bad calc: %s" % dt)
                 elif dt >= 0.001:
                     print '%stime.sleep(%.3f)' % (indent, dt)
-        if self.urb.status != 0:
+        EREMOTEIO = -121
+        if self.urb.status != 0 and not (not args.remoteio and self.urb.status == EREMOTEIO):
             print '%s# WARNING: complete code %s (%s)' % (indent, self.urb.status,  errno.errorcode.get(-self.urb.status, "unknown"))
         
         self.previous_urb_complete_kept = self.urb
@@ -924,6 +925,8 @@ if __name__ == "__main__":
     add_bool_arg(parser, '--cc', default=False, help='Custom call output')
     parser.add_argument('--device', type=int, default=None, help='Only keep packets for given device')
     add_bool_arg(parser, '--rel-pkt', default=False, help='Only count kept packets')
+    # http://sourceforge.net/p/libusb/mailman/message/25635949/
+    add_bool_arg(parser, '--remoteio', default=False, help='Warn on -EREMOTEIO resubmit (default: ignore)')
 
     parser.add_argument('fin', help='File name in')
     args = parser.parse_args()
