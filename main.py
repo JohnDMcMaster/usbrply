@@ -133,12 +133,6 @@ def add_bool_arg(parser, yes_arg, default=False, **kwargs):
 # Typically size 0-1 but sometimes more pile up
 g_pending = {}
 
-def keep_packet( _in ):
-    # grr forgot I had this on
-    # return (in.m_urb.transfer_type & URB_CONTROL) and (in.m_ctrl.bRequestType & URB_TRANSFER_IN)
-    return True
-
-
 class payload_bytes_type_t:
     def __init__(self):
         self.req_in = 0
@@ -436,6 +430,7 @@ def UVDHexdumpCore(*args):
 class Gen:
     def __init__(self):
         self.g_cur_packet = 0
+        self.rel_pkt = 0
         self.previous_urb_complete_kept = None
         self.pending_complete = {}
         
@@ -464,14 +459,14 @@ class Gen:
         header = pcap_pkthdr(header)
         '''
         if caplen != len(packet):
-            print "packet %d: malformed, caplen %d != len %d", self.g_cur_packet, caplen, len(packet)
+            print "packet %s: malformed, caplen %d != len %d", self.pktn_str(), caplen, len(packet)
             return
         if args.verbose:
             print 'Len: %d' % len(packet)
         
         dbg("Length %u" % (len(packet),))
         if 0:
-            print "PACKET %u: length %u" % (self.g_cur_packet, len(packet))
+            print "PACKET %s: length %u" % (self.pktn_str(), len(packet))
             UVDHexdumpCore(packet, "  ")
         
     
@@ -540,8 +535,6 @@ class Gen:
         def usb_urb(s):
             return  usb_urb_nt(*struct.unpack(usb_urb_fmt, str(s)))
     
-    
-    
         # caplen is actual length, len is reported
         self.urb_raw = packet
         self.urb = usb_urb(packet[0:usb_urb_sz])
@@ -549,15 +542,11 @@ class Gen:
         
         if args.device is not None and self.urb.device != args.device:
             return
+        self.rel_pkt += 1
         
         if args.verbose:
             print "Header size: %lu" % (usb_urb_sz,)
             print_urb(urb)
-        
-        if 0:
-            print "URB" % (self.g_cur_packet)
-            UVDHexdumpCore(urb, "  ")
-        
         
         if self.urb.type == URB_ERROR:
             print "oh noes!"
@@ -571,8 +560,8 @@ class Gen:
                     print '  %s' % (k,)
             # for some reason usbmon will ocassionally give packets out of order
             if not self.urb.id in g_pending:
-                #raise Exception("Packet %d missing submit.  URB ID: 0x%016lX" % (self.g_cur_packet, self.urb.id))
-                comment("WARNING: Packet %d missing submit.  URB ID: 0x%016lX" % (self.g_cur_packet, self.urb.id))
+                #raise Exception("Packet %s missing submit.  URB ID: 0x%016lX" % (self.pktn_str(), self.urb.id))
+                comment("WARNING: Packet %s missing submit.  URB ID: 0x%016lX" % (self.pktn_str(), self.urb.id))
                 self.pending_complete[self.urb.id] = (self.urb, dat_cur)
             else:
                 self.process_complete(dat_cur)
@@ -587,7 +576,7 @@ class Gen:
                 pending = PendingRX()
                 pending.raw = self.urb_raw
                 pending.m_urb = self.urb
-                pending.packet_number = self.g_cur_packet
+                pending.packet_number = self.pktn_str()
                 if args.verbose:
                     print 'Added pending bulk URB %s' % self.urb.id
                 g_pending[self.urb.id] = pending
@@ -604,12 +593,16 @@ class Gen:
         self.submit = None
         self.urb = None
 
+    def pktn_str(self):
+        if args.rel_pkt:
+            return self.rel_pkt
+        else:
+            return self.g_cur_packet
+
     def process_complete(self, dat_cur):
         self.submit = g_pending[self.urb.id]
         # Done with it, get rid of it
         del g_pending[self.urb.id]
-        if not keep_packet(self.submit):
-            return
 
         if self.previous_urb_complete_kept is not None:
             '''
@@ -656,7 +649,7 @@ class Gen:
         ctrl = usb_ctrlrequest(self.urb.ctrlrequest[0:usb_ctrlrequest_sz])
         
         if args.verbose:
-            print "Packet %d control submit (control info size %lu)" % (self.g_cur_packet, 666)
+            print "Packet %s control submit (control info size %lu)" % (self.pktn_str(), 666)
             print "    bRequestType: %s (0x%02X)" % (request_type2str(ctrl.bRequestType), ctrl.bRequestType)
             #print "    bRequest: %s (0x%02X)" % (request2str(ctrl), ctrl.bRequest)
             print "    wValue: 0x%04X" % (ctrl.wValue)
@@ -674,7 +667,7 @@ class Gen:
             pending.m_data_out = str(dat_cur)
         
         pending.m_ctrl = ctrl
-        pending.packet_number = self.g_cur_packet
+        pending.packet_number = self.pktn_str()
         if args.verbose:
             print 'Added pending control URB %s' % self.urb.id
         g_pending[self.urb.id] = pending
@@ -705,7 +698,7 @@ class Gen:
         
         if self.submit.m_ctrl.wLength:
             if args.packet_numbers:
-                packet_numbering = "packet %u/%u" % (self.submit.packet_number, self.g_cur_packet)
+                packet_numbering = "packet %s/%s" % (self.submit.packet_number, self.pktn_str())
             else:
                 # TODO: consider counting instead of by captured index
                 packet_numbering = "packet"
@@ -769,16 +762,9 @@ class Gen:
         so that I could diff and then easier back annotate with packet numbers
         '''
         if args.packet_numbers:
-            comment("Generated from packet %u/%u" % (self.submit.packet_number, self.g_cur_packet))
+            comment("Generated from packet %s/%s" % (self.submit.packet_number, self.pktn_str()))
         else:
             comment("Generated from packet %s/%s" % (None, None))
-
-        '''
-        if args.ofmt == OUTPUT_LIBUSBPY:
-            print "%s
-        elif args.ofmt in ('LINUX', 'LIBUSB'):
-            print "%s//Generated from packet %u/%u" % (indent, self.submit.packet_number, self.g_cur_packet)
-        '''
 
     def processBulkSubmit(self, dat_cur):
         if self.urb.type & USB_DIR_IN:
@@ -793,8 +779,8 @@ class Gen:
         if args.verbose:
             print 'Remaining data: %d' % (len(dat_cur))
         
-        if args.verbose:
-            print "Packet %d bulk submit (control info size %lu)" % (self.g_cur_packet, 666)
+        #if args.verbose:
+        #    print "Packet %d bulk submit (control info size %lu)" % (self.pktn_str(), 666)
         
         
         if self.urb.endpoint & URB_TRANSFER_IN:
@@ -808,7 +794,7 @@ class Gen:
             pending.m_data_out = str(dat_cur)
 
         
-        pending.packet_number = self.g_cur_packet
+        pending.packet_number = self.pktn_str()
         if args.verbose:
             print 'Added pending bulk URB %s' % self.urb.id
         g_pending[self.urb.id] = pending
@@ -865,14 +851,14 @@ class Gen:
         
         if max_payload_sz:
             if args.packet_numbers:
-                packet_numbering = "packet %u/%u" % (self.submit.packet_number, self.g_cur_packet)
+                packet_numbering = "packet %s/%s" % (self.submit.packet_number, self.pktn_str())
             else:
                 # TODO: consider counting instead of by captured index
                 packet_numbering = "packet"
             
     
             if args.bulk_dir:
-                fn = os.path.join(args.bulk_dir, 'pkt%06d_bulk_in.bin' % self.g_cur_packet)
+                fn = os.path.join(args.bulk_dir, 'pkt%06d_bulk_in.bin' % self.pktn_str())
                 print 'Saving %s, len %d' % (fn, len(dat_cur))
                 open(fn, 'w').write(dat_cur)
             elif args.ofmt == OUTPUT_LIBUSBPY:
@@ -937,6 +923,7 @@ if __name__ == "__main__":
     add_bool_arg(parser, '--halt', default=True, help='Halt on errors')
     add_bool_arg(parser, '--cc', default=False, help='Custom call output')
     parser.add_argument('--device', type=int, default=None, help='Only keep packets for given device')
+    add_bool_arg(parser, '--rel-pkt', default=False, help='Only count kept packets')
 
     parser.add_argument('fin', help='File name in')
     args = parser.parse_args()
