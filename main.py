@@ -80,10 +80,10 @@ USB_DIR_OUT =               0       # to device
 USB_DIR_IN =                0x80    # to host
 
 USB_TYPE_MASK =             (0x03 << 5)
-USB_TYPE_STANDARD =         (0x00 << 5)
-USB_TYPE_CLASS =            (0x01 << 5)
-USB_TYPE_VENDOR =           (0x02 << 5)
-USB_TYPE_RESERVED =         (0x03 << 5)
+USB_TYPE_STANDARD =         (0x00 << 5) # 0x00
+USB_TYPE_CLASS =            (0x01 << 5) # 0x20
+USB_TYPE_VENDOR =           (0x02 << 5) # 0x40
+USB_TYPE_RESERVED =         (0x03 << 5) # 0x60
 
 USB_RECIP_MASK =            0x1f
 USB_RECIP_DEVICE =          0x00
@@ -177,18 +177,7 @@ usb_ctrlrequest_nt = namedtuple('usb_ctrlrequest', ('bRequestType',
 usb_ctrlrequest_fmt = '<BBHHHH'
 usb_ctrlrequest_sz = struct.calcsize(usb_ctrlrequest_fmt)
 def usb_ctrlrequest(s):
-    return  usb_ctrlrequest_nt(*struct.unpack(usb_ctrlrequest_fmt, str(s)))
-
-'''
-//TODO; figure out what this actually is
-typedef struct {
-    uint8_t raw[24];
-} __attribute__((packed)) control_rx_t;
-'''
-control_rx_sz = 3
-def control_rx(s):
-    return s
-
+    return usb_ctrlrequest_nt(*struct.unpack(usb_ctrlrequest_fmt, str(s)))
 
 
 def printControlRequest(submit, data_str, data_size, pipe_str):
@@ -314,9 +303,23 @@ feat_i2s = {
         2: 'TEST_MODE',
         }
 
-def req_comment(ctrl, dat):
-    reqType = ctrl.bRequestType & USB_TYPE_MASK
-    # Table 9-3. Standard Device Requests
+setup_reqs = [
+            # reply type
+            #"GET_STATUS",
+            "CLEAR_FEATURE",
+            "SET_FEATURE",
+            "SET_ADDRESS",
+            "GET_DESCRIPTOR",
+            "SET_DESCRIPTOR",
+            "GET_CONFIGURATION",
+            "SET_CONFIGURATION",
+            "SET_INTERFACE",
+            "GET_INTERFACE",
+            "CLEAR_FEATURE",
+            "SYNCH_FRAME",  
+            ]
+
+def req2s(ctrl):
     m = {
         USB_TYPE_STANDARD: {
             USB_REQ_GET_STATUS:         "GET_STATUS",
@@ -347,10 +350,16 @@ def req_comment(ctrl, dat):
             0xA0:         "FX2_REG_W",
         })
     
+    reqType = ctrl.bRequestType & USB_TYPE_MASK
     n = m.get(reqType, None)
     if n is None or not ctrl.bRequest in n:
-        return
+        return None
     reqs = n[ctrl.bRequest]
+    return reqs
+
+def req_comment(ctrl, dat):
+    # Table 9-3. Standard Device Requests
+    reqs = req2s(ctrl)
     ret = '%s (0x%02X)' % (reqs, ctrl.bRequest)
     if reqs == 'SET_ADDRESS':
         ret += ': 0x%02x/%d' % (ctrl.wValue, ctrl.wValue)
@@ -427,6 +436,71 @@ def print_urb(urb):
 def UVDHexdumpCore(*args):
     comment('hexdump broken')
 
+'''
+typedef struct {
+    uint64_t id
+    uint8_t type
+    uint8_t transfer_type
+    uint8_t endpoint
+    uint8_t device
+    uint16_t bus_id
+    uint8_t setup_request
+    uint8_t data
+    uint64_t sec
+    uint32_t usec
+    uint32_t status
+    uint32_t length
+    uint32_t data_length
+    //These form the URB setup for control transfers and are techincally part of the URB
+    //uint8_t pad[24]
+} __attribute__((packed)) usb_urb_t
+'''
+usb_urb_nt = namedtuple('usb_urb', (
+        'id',
+        'type',
+        'transfer_type',
+        'endpoint',
+        
+        'device',
+        'bus_id',
+        'setup_request',
+        'data',
+        
+        'sec',
+        'usec',
+        'status',
+        
+        # Control: requested data length
+        # Complete: identical to data_length?
+        'length',
+        # How much data is attached to this message
+        'data_length',
+        # Main use is URB setup for control requests, not sure if thats universal?
+        # TODO: check how these are used in bulk requests
+        # If it is the same, they should be merged into this structure
+        'ctrlrequest',))
+usb_urb_fmt = ('<'
+        'Q' # id
+        'B'
+        'B'
+        'B'
+        
+        'B' # device
+        'H'
+        'B'
+        'B'
+        
+        'Q' # sec
+        'I'
+        'i'
+        
+        'I' # length
+        'I'
+        '24s')
+usb_urb_sz = struct.calcsize(usb_urb_fmt)
+def usb_urb(s):
+    return  usb_urb_nt(*struct.unpack(usb_urb_fmt, str(s)))
+
 class Gen:
     def __init__(self):
         self.g_cur_packet = 0
@@ -445,19 +519,6 @@ class Gen:
             print
             print 'PACKET %s' % (self.g_cur_packet,)
         
-        '''
-        struct pcap_pkthdr {
-            struct timeval ts;    /* time stamp */
-            bpf_u_int32 caplen;    /* length of portion present */
-            bpf_u_int32 len;    /* length this packet (off wire) */
-        }
-        '''
-        '''
-        pcap_pkthdr_nt = namedtuple('pcap_pkthdr', ('ts', 'caplen', 'len'))
-        def pcap_pkthdr(s):
-            return  pcap_pkthdr_nt(*struct.unpack('<III', s))
-        header = pcap_pkthdr(header)
-        '''
         if caplen != len(packet):
             print "packet %s: malformed, caplen %d != len %d", self.pktn_str(), caplen, len(packet)
             return
@@ -465,83 +526,25 @@ class Gen:
             print 'Len: %d' % len(packet)
         
         dbg("Length %u" % (len(packet),))
-        if 0:
-            print "PACKET %s: length %u" % (self.pktn_str(), len(packet))
-            UVDHexdumpCore(packet, "  ")
-        
-    
-        '''
-        typedef struct {
-            uint64_t id
-            uint8_t type
-            uint8_t transfer_type
-            uint8_t endpoint
-            uint8_t device
-            uint16_t bus_id
-            uint8_t setup_request
-            uint8_t data
-            uint64_t sec
-            uint32_t usec
-            uint32_t status
-            uint32_t length
-            uint32_t data_length
-            //These form the URB setup for control transfers and are techincally part of the URB
-            //uint8_t pad[24]
-        } __attribute__((packed)) usb_urb_t
-        '''
-        usb_urb_nt = namedtuple('usb_urb', (
-                'id',
-                'type',
-                'transfer_type',
-                'endpoint',
-                
-                'device',
-                'bus_id',
-                'setup_request',
-                'data',
-                
-                'sec',
-                'usec',
-                'status',
-                
-                # Control: requested data length
-                # Complete: identical to data_length?
-                'length',
-                # How much data is attached to this message
-                'data_length',
-                # Main use is URB setup for control requests, not sure if thats universal?
-                # TODO: check how these are used in bulk requests
-                # If it is the same, they should be merged into this structure
-                'ctrlrequest',))
-        usb_urb_fmt = ('<'
-                'Q' # id
-                'B'
-                'B'
-                'B'
-                
-                'B' # device
-                'H'
-                'B'
-                'B'
-                
-                'Q' # sec
-                'I'
-                'i'
-                
-                'I' # length
-                'I'
-                '24s')
-        usb_urb_sz = struct.calcsize(usb_urb_fmt)
-        def usb_urb(s):
-            return  usb_urb_nt(*struct.unpack(usb_urb_fmt, str(s)))
     
         # caplen is actual length, len is reported
         self.urb_raw = packet
         self.urb = usb_urb(packet[0:usb_urb_sz])
         dat_cur = packet[usb_urb_sz:]
         
+        # Main packet filtering
+        # Drop if not specified device
         if args.device is not None and self.urb.device != args.device:
             return
+        # Drop if is generic device management traffic
+        if not args.setup and self.urb.transfer_type == URB_CONTROL:
+            ctrl = usb_ctrlrequest(self.urb.ctrlrequest[0:usb_ctrlrequest_sz])
+            reqst = req2s(ctrl)
+            if reqst in setup_reqs:
+                g_pending[self.urb.id] = None
+                self.submit = None
+                self.urb = None
+                return
         self.rel_pkt += 1
         
         if args.verbose:
@@ -552,13 +555,13 @@ class Gen:
             print "oh noes!"
             if args.halt:
                 sys.exit(1)
-            
+        
         if self.urb.type == URB_COMPLETE:
             if args.verbose:
                 print 'Pending (%d):' % (len(g_pending),)
                 for k in g_pending:
                     print '  %s' % (k,)
-            # for some reason usbmon will ocassionally give packets out of order
+            # for some reason usbmon will occasionally give packets out of order
             if not self.urb.id in g_pending:
                 #raise Exception("Packet %s missing submit.  URB ID: 0x%016lX" % (self.pktn_str(), self.urb.id))
                 comment("WARNING: Packet %s missing submit.  URB ID: 0x%016lX" % (self.pktn_str(), self.urb.id))
@@ -589,7 +592,6 @@ class Gen:
                 self.urb = urb_complete
                 self.process_complete(dat_cur)
                 
-        
         self.submit = None
         self.urb = None
 
@@ -603,6 +605,14 @@ class Gen:
         self.submit = g_pending[self.urb.id]
         # Done with it, get rid of it
         del g_pending[self.urb.id]
+
+        # Discarded?
+        if self.submit is None:
+            return
+
+        if args.ofmt in ('LINUX', 'LIBUSB'):
+            print
+        self.packnum()
 
         if self.previous_urb_complete_kept is not None:
             '''
@@ -727,12 +737,6 @@ class Gen:
         printControlRequest(self.submit, data_str, data_size, "usb_sndctrlpipe(%s, 0), " % (deviceStr()) )
         
     def processControlComplete(self, dat_cur):
-        # self.print_stat()
-        
-        if args.ofmt in ('LINUX', 'LIBUSB'):
-            print
-        self.packnum()
-
         if args.comment:
             req_comment(self.submit.m_ctrl, self.submit.m_data_out)
         
@@ -830,18 +834,6 @@ class Gen:
             '''
             raise Exception('FIXME')
         
-        '''
-        # Take off the unknown struct
-        if len(dat_cur) < control_rx_sz:
-            print "not enough data"
-            if args.halt:
-                sys.exit(1)
-            return
-        
-        dat_cur = dat_cur[control_rx_sz:]
-        # Now dat_cur/len(dat_cur) is the control in data payload
-        '''
-        
         # Verify we actually have enough / expected
         # If exact match don't care
         if len(dat_cur) != max_payload_sz:
@@ -887,12 +879,6 @@ class Gen:
             raise Exception('FIXME')
 
     def processBulkComplete(self, dat_cur):
-        # self.print_stat()
-        
-        if args.ofmt in ('LINUX', 'LIBUSB'):
-            print
-        self.packnum()
-
         if self.urb.endpoint & USB_DIR_IN:
             g_payload_bytes.bulk.in_ += self.urb.data_length
             self.processBulkCompleteIn(dat_cur)
@@ -903,7 +889,6 @@ class Gen:
     def processInterruptComplete(self, dat_cur):
         if args.ofmt in ('LINUX', 'LIBUSB'):
             print
-        self.packnum()
         print '%s# WARNING: omitting interrupt' % (indent,)
 
 if __name__ == "__main__":
@@ -927,6 +912,7 @@ if __name__ == "__main__":
     add_bool_arg(parser, '--rel-pkt', default=False, help='Only count kept packets')
     # http://sourceforge.net/p/libusb/mailman/message/25635949/
     add_bool_arg(parser, '--remoteio', default=False, help='Warn on -EREMOTEIO resubmit (default: ignore)')
+    add_bool_arg(parser, '--setup', default=True, help='Emit initialization packets like CLEAR_FEATURE, SET_FEATURE')
 
     parser.add_argument('fin', help='File name in')
     args = parser.parse_args()
