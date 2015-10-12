@@ -268,7 +268,7 @@ def bytes2AnonArray(bytes, byte_type = "uint8_t"):
     
         for i in xrange(len(bytes)):
             if i and i % 16 == 0:
-                byte_str += '\"\n              \"'
+                byte_str += '\"\n            \"'
             byte_str += "\\x%02X" % (ord(bytes[i]),)
         return byte_str + "\""
     else:
