@@ -177,7 +177,7 @@ def usb_ctrlrequest(s):
     return usb_ctrlrequest_nt(*struct.unpack(usb_ctrlrequest_fmt, str(s)))
 
 
-def printControlRequest(self, submit, data_str, data_size, pipe_str):
+def printControlRequest(submit, data_str, data_size, pipe_str):
     '''
     unsigned int dev_control_message(int requesttype, int request,
             int value, int index, char *bytes, int size):
@@ -217,27 +217,7 @@ def printControlRequest(self, submit, data_str, data_size, pipe_str):
             print "%scontrolWrite(0x%02X, 0x%02X, 0x%04X, 0x%04X, %s)" % (indent, submit.m_ctrl.bRequestType, submit.m_ctrl.bRequest,
                     submit.m_ctrl.wValue, submit.m_ctrl.wIndex, data_str)
     elif args.ofmt == 'json':
-        if submit.m_ctrl.bRequestType & URB_TRANSFER_IN:
-            oj['data'].append({
-                    'type': 'controlRead',
-                    'reqt': submit.m_ctrl.bRequestType, 
-                    'req': submit.m_ctrl.bRequest,
-                    'val': submit.m_ctrl.wValue, 
-                    'ind': submit.m_ctrl.wIndex, 
-                    'len': data_size,
-                    'data': data_str,
-                    'packn': (self.submit.packet_number, self.pktn_str()),
-                    })
-        else:
-            oj['data'].append({
-                    'type': 'controlWrite',
-                    'reqt': submit.m_ctrl.bRequestType, 
-                    'req': submit.m_ctrl.bRequest,
-                    'val': submit.m_ctrl.wValue, 
-                    'ind': submit.m_ctrl.wIndex, 
-                    'data': data_str,
-                    'packn': (self.submit.packet_number, self.pktn_str()),
-                    })
+        pass
     elif args.ofmt in ('libusb', 'linux'):
         timeout = ''
         out = ''
@@ -720,7 +700,7 @@ class Gen:
         elif args.ofmt == 'libusbpy':
             data_str = "\"\""
         
-        printControlRequest(self, self.submit, data_str, data_size, "usb_rcvctrlpipe(%s, 0), " % (deviceStr(),) )
+        printControlRequest(self.submit, data_str, data_size, "usb_rcvctrlpipe(%s, 0), " % (deviceStr(),) )
         
         # Verify we actually have enough / expected
         # If exact match don't care
@@ -729,6 +709,19 @@ class Gen:
                 comment("NOTE:: req max %u but got %u" % (max_payload_sz, len(dat_cur)))
             else:
                 raise Exception('invalid response')
+        
+        if args.ofmt == 'json':
+            oj['data'].append({
+                    'type': 'controlRead',
+                    'reqt': self.submit.m_ctrl.bRequestType, 
+                    'req': self.submit.m_ctrl.bRequest,
+                    'val': self.submit.m_ctrl.wValue, 
+                    'ind': self.submit.m_ctrl.wIndex, 
+                    'len': self.submit.m_ctrl.wLength,
+                    'data': bytes2AnonArray(dat_cur),
+                    'packn': (self.submit.packet_number, self.pktn_str()),
+                    })
+        
         
         if self.submit.m_ctrl.wLength:
             if args.packet_numbers:
@@ -757,7 +750,18 @@ class Gen:
         elif args.ofmt == 'libusbpy':
             data_str = "\"\""
         
-        printControlRequest(self, self.submit, data_str, data_size, "usb_sndctrlpipe(%s, 0), " % (deviceStr()) )
+        printControlRequest(self.submit, data_str, data_size, "usb_sndctrlpipe(%s, 0), " % (deviceStr()) )
+        
+        if args.ofmt == 'json':
+            oj['data'].append({
+                    'type': 'controlWrite',
+                    'reqt': self.submit.m_ctrl.bRequestType, 
+                    'req': self.submit.m_ctrl.bRequest,
+                    'val': self.submit.m_ctrl.wValue, 
+                    'ind': self.submit.m_ctrl.wIndex, 
+                    'data': bytes2AnonArray(self.submit.m_data_out),
+                    'packn': (self.submit.packet_number, self.pktn_str()),
+                    })
         
     def processControlComplete(self, dat_cur):
         if args.comment:
@@ -1093,5 +1097,5 @@ if __name__ == "__main__":
 
 '''
 
-    open('/dev/stdout', 'w').write(json.dumps(oj, sort_keys=True, indent=4, separators=(',', ': ')))
+    print json.dumps(oj, sort_keys=True, indent=4, separators=(',', ': '))
 
