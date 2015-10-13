@@ -1,24 +1,43 @@
-from uvscada.util import str2hex
-
 import re
 import sys
 import ast
 import json
 import binascii
 
+prefix = ' ' * 8
+
+def str2hex(buff, prefix='', terse=True):
+    buff = bytearray(buff)
+    ret = ''
+    if terse and len(buff) > 16:
+        ret += '\n'
+    for i in xrange(len(buff)):
+        if i % 16 == 0:
+            if i != 0:
+                ret += '" \\\n'
+            if len(buff) <= 16:
+                ret += '"'
+            if not terse or len(buff) > 16:
+                ret += '%s"' % prefix
+            
+        ret += "\\x%02X" % (buff[i],)
+    return ret + '"'
+
+def fmt_terse(data):
+    ret = str2hex(data, prefix=prefix)
+    if len(data) > 16:
+        ret += '\n%s' % prefix
+    return ret
+
 def dump(fin):
     j = json.load(open(fin))
     pi = 0
     ps = j['data']
-    prefix = ' ' * 8
-    def fmt_terse(data):
-        ret = str2hex(data, prefix=prefix)
-        if len(data) > 16:
-            ret += '\n%s' % prefix
     while pi < len(ps):
         p = ps[pi]
         if p['type'] == 'comment':
-            print '# %s' % p['v']
+            #print '# %s' % p['v']
+            pass
         elif p['type'] == 'controlRead':
             '''
             # Generated from packet 6/7
@@ -67,4 +86,3 @@ if __name__ == "__main__":
     parser.add_argument('fin')
     args = parser.parse_args()
     dump(args.fin)
-
