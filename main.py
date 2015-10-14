@@ -543,7 +543,7 @@ class Gen:
         if not args.setup and self.urb.transfer_type == URB_CONTROL:
             ctrl = usb_ctrlrequest(self.urb.ctrlrequest[0:usb_ctrlrequest_sz])
             reqst = req2s(ctrl)
-            if reqst in setup_reqs:
+            if reqst in setup_reqs or reqst == "GET_STATUS" and self.urb.type == URB_SUBMIT:
                 g_pending[self.urb.id] = None
                 self.submit = None
                 self.urb = None
@@ -1097,5 +1097,6 @@ if __name__ == "__main__":
 
 '''
 
-    print json.dumps(oj, sort_keys=True, indent=4, separators=(',', ': '))
+    if args.ofmt == 'json':
+        print json.dumps(oj, sort_keys=True, indent=4, separators=(',', ': '))
 

@@ -7,6 +7,8 @@ import binascii
 prefix = ' ' * 8
 
 def str2hex(buff, prefix='', terse=True):
+    if len(buff) == 0:
+        return '""'
     buff = bytearray(buff)
     ret = ''
     if terse and len(buff) > 16:
