@@ -89,7 +89,7 @@ USB_RECIP_RPIPE =           0x05
 
 
 def dbg(s):
-    if args.verbose:
+    if args and args.verbose:
         print s
 
 def comment(s):
@@ -436,8 +436,12 @@ def print_urb(urb):
     print "  length: 0x%08X" % (urb.length)
     print "  data_length: 0x%08X" % (urb.data_length)
 
-def UVDHexdumpCore(*args):
-    comment('hexdump broken')
+def hexdump(*args):
+    try:
+        from uvscada.util import hexdump
+        hexdump(*args)
+    except:
+        comment('hexdump broken')
 
 '''
 typedef struct {
@@ -529,6 +533,9 @@ class Gen:
             print 'Len: %d' % len(packet)
         
         dbg("Length %u" % (len(packet),))
+        if len(packet) < usb_urb_sz:
+            hexdump(packet)
+            raise ValueError("Packet size %d is not min size %d" % (len(packet), usb_urb_sz))
     
         # caplen is actual length, len is reported
         self.urb_raw = packet
@@ -676,7 +683,7 @@ class Gen:
             dbg("%d: OUT" % (self.g_cur_packet))
             if len(dat_cur) != self.urb.data_length:
                 comment("WARNING: remaining bytes %d != expected payload out bytes %d" % (len(dat_cur), self.urb.data_length))
-                UVDHexdumpCore(dat_cur, "  ")
+                hexdump(dat_cur, "  ")
                 #raise Exception('See above')
             pending.m_data_out = str(dat_cur)
         
@@ -719,7 +726,7 @@ class Gen:
                     'ind': self.submit.m_ctrl.wIndex, 
                     'len': self.submit.m_ctrl.wLength,
                     'data': bytes2AnonArray(dat_cur),
-                    'packn': (self.submit.packet_number, self.pktn_str()),
+                    'packn': self.packnumt(),
                     })
         
         
@@ -760,7 +767,7 @@ class Gen:
                     'val': self.submit.m_ctrl.wValue, 
                     'ind': self.submit.m_ctrl.wIndex, 
                     'data': bytes2AnonArray(self.submit.m_data_out),
-                    'packn': (self.submit.packet_number, self.pktn_str()),
+                    'packn': self.packnumt(),
                     })
         
     def processControlComplete(self, dat_cur):
@@ -798,6 +805,12 @@ class Gen:
         else:
             comment("Generated from packet %s/%s" % (None, None))
 
+    def packnumt(self):
+        if args.packet_numbers:
+            return (self.submit.packet_number, self.pktn_str())
+        else:
+            return (None, None)
+        
     def processBulkSubmit(self, dat_cur):
         if self.urb.type & USB_DIR_IN:
             g_payload_bytes.bulk.req_in += self.urb.length
@@ -821,7 +834,7 @@ class Gen:
             dbg("%d: OUT" % (self.g_cur_packet))
             if len(dat_cur) != self.urb.data_length:
                 comment("WARNING: remaining bytes %d != expected payload out bytes %d" % (len(dat_cur), self.urb.data_length))
-                UVDHexdumpCore(dat_cur, "  ")
+                hexdump(dat_cur, "  ")
                 #raise Exception('See above')
             pending.m_data_out = str(dat_cur)
 
@@ -860,7 +873,7 @@ class Gen:
                     'endp': self.submit.m_urb.endpoint, 
                     'len': data_size,
                     'data': bytes2AnonArray(dat_cur),
-                    'packn': (self.submit.packet_number, self.pktn_str()),
+                    'packn': self.packnumt(),
                     })
         else:
             '''
@@ -912,7 +925,7 @@ class Gen:
                     'type': 'bulkWrite',
                     'endp': self.submit.m_urb.endpoint, 
                     'data': bytes2AnonArray(self.submit.m_data_out),
-                    'packn': (self.submit.packet_number, self.pktn_str()),
+                    'packn': self.packnumt(),
                     })
         else:
             '''
@@ -935,6 +948,7 @@ class Gen:
             print
         print '%s# WARNING: omitting interrupt' % (indent,)
 
+args = None
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Replay captured USB packets')
     parser.add_argument('--range', '-r', help='inclusive range like 123:456')
@@ -1099,4 +1113,3 @@ if __name__ == "__main__":
 
     if args.ofmt == 'json':
         print json.dumps(oj, sort_keys=True, indent=4, separators=(',', ': '))
-
