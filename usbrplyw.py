@@ -3,6 +3,17 @@
 '''
 uvusbreplay-py 01_prog2.cap
 sudo pip install pycap
+
+
+
+Windows is quirky
+
+Control packets
+-What are the status packets used for?
+-Control write has the request on the response packet
+
+Bulk packets
+-Only one packet for both request and response
 '''
 
 import pcap
@@ -14,12 +25,17 @@ from collections import namedtuple
 import os
 import errno
 import json
+from lib2to3.fixes.fix_metaclass import FixMetaclass
 
 g_min_packet = 0
 g_max_packet = float('inf')
 
 VERSION_STR    = "0.1"
 indent = ""
+
+MODE = 'lin'
+# http://desowin.org/usbpcap/capture_limitations.html
+MODE = 'win'
 
 '''
 pcap/usb.h compat
@@ -40,6 +56,20 @@ possible event type
 URB_SUBMIT =        ord('S')
 URB_COMPLETE =      ord('C')
 URB_ERROR =         ord('E')
+
+# Windows transfer stages
+# Usb function: URB_FUNCTION_VENDOR_DEVICE (0x17)
+XFER_SETUP = 0
+# Usb function: URB_FUNCTION_CONTROL_TRANSFER (0x08)
+XFER_DATA = 1
+# Usb function: URB_FUNCTION_CONTROL_TRANSFER (0x08)
+XFER_STATUS = 2
+
+USBD_STATUS_SUCCESS = 0
+
+# https://msdn.microsoft.com/en-us/library/windows/hardware/ff540409(v=vs.85).aspx
+URB_FUNCTION_CONTROL_TRANSFER = 0x08
+URB_FUNCTION_VENDOR_DEVICE = 0x17
 
 urb_type2str = {
         URB_SUBMIT: 'URB_SUBMIT',
@@ -86,6 +116,160 @@ USB_RECIP_OTHER =           0x03
 # From Wireless USB 1.0
 USB_RECIP_PORT =            0x04
 USB_RECIP_RPIPE =           0x05
+
+
+'''
+struct usb_ctrlrequest {
+    __u8 bRequestType;
+    __u8 bRequest;
+    __le16 wValue;
+    __le16 wIndex;
+    __le16 wLength;
+} __attribute__ ((packed));
+'''
+if MODE == 'win':
+    usb_ctrlrequest_nt = namedtuple('usb_ctrlrequest_win', ('bRequestType',
+            'bRequest',
+            'wValue',
+            'wIndex',
+            'wLength',
+            ))
+    usb_ctrlrequest_fmt = '<BBHHH'
+else:
+    usb_ctrlrequest_nt = namedtuple('usb_ctrlrequest', ('bRequestType',
+            'bRequest',
+            'wValue',
+            'wIndex',
+            'wLength',
+            # FIXME: what exactly are these?
+            'res'))
+    usb_ctrlrequest_fmt = '<BBHHHH'
+usb_ctrlrequest_sz = struct.calcsize(usb_ctrlrequest_fmt)
+def usb_ctrlrequest(s):
+    return usb_ctrlrequest_nt(*struct.unpack(usb_ctrlrequest_fmt, str(s)))
+
+'''
+typedef struct {
+    uint64_t id
+    uint8_t type
+    uint8_t transfer_type
+    uint8_t endpoint
+    uint8_t device
+    uint16_t bus_id
+    uint8_t setup_request
+    uint8_t data
+    uint64_t sec
+    uint32_t usec
+    uint32_t status
+    uint32_t length
+    uint32_t data_length
+    //These form the URB setup for control transfers and are techincally part of the URB
+    //uint8_t pad[24]
+} __attribute__((packed)) usb_urb_t
+'''
+usb_urb_lin_nt = namedtuple('usb_urb_lin', (
+        'id',
+        'type',
+        'transfer_type',
+        'endpoint',
+        
+        'device',
+        'bus_id',
+        'setup_request',
+        'data',
+        
+        'sec',
+        'usec',
+        'status',
+        
+        # Control: requested data length
+        # Complete: identical to data_length?
+        'length',
+        # How much data is attached to this message
+        'data_length',
+        # Main use is URB setup for control requests, not sure if thats universal?
+        # TODO: check how these are used in bulk requests
+        # If it is the same, they should be merged into this structure
+        'ctrlrequest',))
+usb_urb_lin_fmt = ('<'
+        'Q' # id
+        'B'
+        'B'
+        'B'
+        
+        'B' # device
+        'H'
+        'B'
+        'B'
+        
+        'Q' # sec
+        'I'
+        'i'
+        
+        'I' # length
+        'I'
+        '24s')
+
+'''
+IRP: I/O request packet
+https://msdn.microsoft.com/en-us/library/windows/hardware/ff550694(v=vs.85).aspx
+'''
+# Header
+# Packet may have additional data
+usb_urb_win_nt = namedtuple('usb_urb_win', (
+        # Length of entire packet entry including htis header and additional pkt_len data
+        'pcap_hdr_len',
+        # IRP ID
+        # buffer ID or something like that
+        # it is not a unique packet ID
+        # but can be used to match up submit and response
+        'id',
+        # IRP_USBD_STATUS
+        'irp_status',
+        # USB Function
+        'usb_func',
+        # IRP Information
+        # Ex: Direction: PDO => FDO
+        'irp_info',
+        # USB port
+        # Ex: 3
+        'bus_id',
+        # USB device on that port
+        # Ex: 16
+        'device',
+        # Which endpoint on that bus
+        # Ex: 0x80 (0 in)
+        'endpoint',
+        # Ex: URB_CONTROL
+        'transfer_type',
+        # Length of data beyond header
+        'data_length',
+        ))
+usb_urb_win_fmt = ('<'
+        'H' # pcap_hdr_len
+        'Q' # irp_id
+        'I' # irp_status
+        'H' # usb_func
+        'B' # irp_info
+        'H' # bus_id
+        'H' # device
+        'B' # endpoint
+        'B' # transfer_type
+        'I' # data_length
+        )
+
+if MODE == 'win':
+    #print 'WARNING: experimental windows mode activated'
+    usb_urb_nt = usb_urb_win_nt
+    usb_urb_fmt = usb_urb_win_fmt
+else:
+    usb_urb_nt = usb_urb_lin_nt
+    usb_urb_fmt = usb_urb_lin_fmt
+
+usb_urb_sz = struct.calcsize(usb_urb_fmt)
+def usb_urb(s):
+    return  usb_urb_nt(*struct.unpack(usb_urb_fmt, str(s)))
+
 
 
 def dbg(s):
@@ -155,28 +339,6 @@ def update_delta( pb ):
     pb.req_out_last = pb.req_out
     pb.out_last = pb.out
 
-'''
-struct usb_ctrlrequest {
-    __u8 bRequestType;
-    __u8 bRequest;
-    __le16 wValue;
-    __le16 wIndex;
-    __le16 wLength;
-} __attribute__ ((packed));
-'''
-usb_ctrlrequest_nt = namedtuple('usb_ctrlrequest', ('bRequestType',
-        'bRequest',
-        'wValue',
-        'wIndex',
-        'wLength',
-        # FIXME: what exactly are these?
-        'res'))
-usb_ctrlrequest_fmt = '<BBHHHH'
-usb_ctrlrequest_sz = struct.calcsize(usb_ctrlrequest_fmt)
-def usb_ctrlrequest(s):
-    return usb_ctrlrequest_nt(*struct.unpack(usb_ctrlrequest_fmt, str(s)))
-
-
 def printControlRequest(submit, data_str, data_size, pipe_str):
     '''
     unsigned int dev_control_message(int requesttype, int request,
@@ -228,7 +390,7 @@ def printControlRequest(submit, data_str, data_size, pipe_str):
         else:
             device_str = "g_dev"
             out += "usb_control_msg(%s, " % device_str
-        
+
         
         if args.ofmt == 'linux':
             out += "%s", pipe_str
@@ -360,9 +522,13 @@ def req2s(ctrl):
     reqs = n[ctrl.bRequest]
     return reqs
 
+# FX2 regs: http://www.keil.com/dd/docs/datashts/cypress/fx2_trm.pdf
+# FX2LP regs: http://www.cypress.com/file/126446/download
 def req_comment(ctrl, dat):
     # Table 9-3. Standard Device Requests
     reqs = req2s(ctrl)
+    if not reqs:
+        return
     ret = '%s (0x%02X)' % (reqs, ctrl.bRequest)
     if reqs == 'SET_ADDRESS':
         ret += ': 0x%02x/%d' % (ctrl.wValue, ctrl.wValue)
@@ -374,13 +540,31 @@ def req_comment(ctrl, dat):
                 0xE600: 'CPUCS',
                 }
         reg = reg2s.get(addr, None)
-        
+
+        # 5.4 FX2 Memory Maps
+        # Appendix C
+        # FX2 Register Summary
         ret += ': addr=0x%04X' % (ctrl.wValue)
         if reg:
             ret += ' (%s)' % (reg,)
         elif addr < 0x1000:
             ret += ' (FW load)'
-        
+        # FX2: 8K of on-chip RAM (the "Main RAM") at addresses 0x0000-0x1FFF
+        # FX2LP: 16K
+        elif 0x0000 <= addr <= 0x3FFF:
+            ret += ' (main RAM addr=0x%04X)' % addr
+        # 512 bytes of on-chip RAM (the "Scratch RAM") at addresses 0xE000-0xE1FFF
+        elif 0xE000 <= addr <= 0xE1FF:
+            ret += ' (scratch RAM)'
+        # The CPU communicates with the SIE using a set of registers occupying on-chip RAM addresses 0xE600-0xE6FF"
+        elif 0xE600 <= addr <= 0xE6FF:
+            ret += ' (unknown reg)'
+        # per memory map: 7.5KB of USB regs and 4K EP buffers
+        elif 0xE200 <= addr <= 0xFFFF:
+            ret += ' (unknown misc)'
+        else:
+            ret += ' (unknown)'
+
         if len(dat) == 1:
             dat = ord(dat)
             if reg == 'CPUCS':
@@ -443,70 +627,34 @@ def hexdump(*args):
     except:
         comment('hexdump broken')
 
-'''
-typedef struct {
-    uint64_t id
-    uint8_t type
-    uint8_t transfer_type
-    uint8_t endpoint
-    uint8_t device
-    uint16_t bus_id
-    uint8_t setup_request
-    uint8_t data
-    uint64_t sec
-    uint32_t usec
-    uint32_t status
-    uint32_t length
-    uint32_t data_length
-    //These form the URB setup for control transfers and are techincally part of the URB
-    //uint8_t pad[24]
-} __attribute__((packed)) usb_urb_t
-'''
-usb_urb_nt = namedtuple('usb_urb', (
-        'id',
-        'type',
-        'transfer_type',
-        'endpoint',
-        
-        'device',
-        'bus_id',
-        'setup_request',
-        'data',
-        
-        'sec',
-        'usec',
-        'status',
-        
-        # Control: requested data length
-        # Complete: identical to data_length?
-        'length',
-        # How much data is attached to this message
-        'data_length',
-        # Main use is URB setup for control requests, not sure if thats universal?
-        # TODO: check how these are used in bulk requests
-        # If it is the same, they should be merged into this structure
-        'ctrlrequest',))
-usb_urb_fmt = ('<'
-        'Q' # id
-        'B'
-        'B'
-        'B'
-        
-        'B' # device
-        'H'
-        'B'
-        'B'
-        
-        'Q' # sec
-        'I'
-        'i'
-        
-        'I' # length
-        'I'
-        '24s')
-usb_urb_sz = struct.calcsize(usb_urb_fmt)
-def usb_urb(s):
-    return  usb_urb_nt(*struct.unpack(usb_urb_fmt, str(s)))
+def urb_error(urb):
+    if MODE == 'win':
+        return urb.irp_status != USBD_STATUS_SUCCESS
+    else:
+        return urb.type == URB_ERROR
+
+def is_urb_submit(urb):
+    if MODE == 'win':
+        return urb.usb_func == URB_FUNCTION_VENDOR_DEVICE
+    else:
+        return urb.type == URB_SUBMIT
+
+def is_urb_complete(urb):
+    if MODE == 'win':
+        return urb.usb_func == URB_FUNCTION_CONTROL_TRANSFER
+    else:
+        return urb.type == URB_COMPLETE
+
+def printv(s):
+    if args.verbose:
+        print s
+
+def urb_id_str(urb_id):
+    if MODE == 'win':
+        # return binascii.hexlify(urb_id)
+        return '0x%X' % urb_id
+    else:
+        return '%s' % urb_id
 
 class Gen:
     def __init__(self):
@@ -514,96 +662,149 @@ class Gen:
         self.rel_pkt = 0
         self.previous_urb_complete_kept = None
         self.pending_complete = {}
+        self.errors = 0
         
     def loop_cb(self, caplen, packet, ts):
-        self.g_cur_packet += 1
-        if self.g_cur_packet < g_min_packet or self.g_cur_packet > g_max_packet:
-            # print "# Skipping packet %d" % (self.g_cur_packet)
-            return
-        if args.verbose:
-            print
-            print
-            print
-            print 'PACKET %s' % (self.g_cur_packet,)
-        
-        if caplen != len(packet):
-            print "packet %s: malformed, caplen %d != len %d", self.pktn_str(), caplen, len(packet)
-            return
-        if args.verbose:
-            print 'Len: %d' % len(packet)
-        
-        dbg("Length %u" % (len(packet),))
-        if len(packet) < usb_urb_sz:
-            hexdump(packet)
-            raise ValueError("Packet size %d is not min size %d" % (len(packet), usb_urb_sz))
-    
-        # caplen is actual length, len is reported
-        self.urb_raw = packet
-        self.urb = usb_urb(packet[0:usb_urb_sz])
-        dat_cur = packet[usb_urb_sz:]
-        
-        # Main packet filtering
-        # Drop if not specified device
-        if args.device is not None and self.urb.device != args.device:
-            return
-        # Drop if is generic device management traffic
-        if not args.setup and self.urb.transfer_type == URB_CONTROL:
-            ctrl = usb_ctrlrequest(self.urb.ctrlrequest[0:usb_ctrlrequest_sz])
-            reqst = req2s(ctrl)
-            if reqst in setup_reqs or reqst == "GET_STATUS" and self.urb.type == URB_SUBMIT:
-                g_pending[self.urb.id] = None
-                self.submit = None
-                self.urb = None
+        try:
+            self.g_cur_packet += 1
+            if self.g_cur_packet < g_min_packet or self.g_cur_packet > g_max_packet:
+                # print "# Skipping packet %d" % (self.g_cur_packet)
                 return
-        self.rel_pkt += 1
-        
-        if args.verbose:
-            print "Header size: %lu" % (usb_urb_sz,)
-            print_urb(urb)
-        
-        if self.urb.type == URB_ERROR:
-            print "oh noes!"
-            if args.halt:
-                sys.exit(1)
-        
-        if self.urb.type == URB_COMPLETE:
             if args.verbose:
-                print 'Pending (%d):' % (len(g_pending),)
-                for k in g_pending:
-                    print '  %s' % (k,)
-            # for some reason usbmon will occasionally give packets out of order
-            if not self.urb.id in g_pending:
-                #raise Exception("Packet %s missing submit.  URB ID: 0x%016lX" % (self.pktn_str(), self.urb.id))
-                comment("WARNING: Packet %s missing submit.  URB ID: 0x%016lX" % (self.pktn_str(), self.urb.id))
-                self.pending_complete[self.urb.id] = (self.urb, dat_cur)
-            else:
-                self.process_complete(dat_cur)
-                
-        elif self.urb.type == URB_SUBMIT:
-            # Find the matching submit request
-            if self.urb.transfer_type == URB_CONTROL:
-                self.processControlSubmit(dat_cur)
-            elif self.urb.transfer_type == URB_BULK:
-                self.processBulkSubmit(dat_cur)
-            elif self.urb.transfer_type == URB_INTERRUPT:
-                pending = PendingRX()
-                pending.raw = self.urb_raw
-                pending.m_urb = self.urb
-                pending.packet_number = self.pktn_str()
-                if args.verbose:
-                    print 'Added pending bulk URB %s' % self.urb.id
-                g_pending[self.urb.id] = pending
+                print
+                print
+                print
+                print 'PACKET %s' % (self.g_cur_packet,)
             
-            if self.urb.id in self.pending_complete:
-                # oh snap solved a temporal anomaly
-                urb_submit = self.urb
-                (urb_complete, dat_cur) = self.pending_complete[self.urb.id]
-                del self.pending_complete[self.urb.id]
-                self.urb = urb_complete
-                self.process_complete(dat_cur)
+            if caplen != len(packet):
+                print "packet %s: malformed, caplen %d != len %d", self.pktn_str(), caplen, len(packet)
+                return
+            if args.verbose:
+                print 'Len: %d' % len(packet)
+                hexdump(packet)
+                #print ts
+                print 'Pending: %d' % len(g_pending)
+            
+            dbg("Length %u" % (len(packet),))
+            if len(packet) < usb_urb_sz:
+                msg = "Packet %s: size %d is not min size %d" % (self.pktn_str(), len(packet), usb_urb_sz)
+                self.errors += 1
+                if args.halt:
+                    hexdump(packet)
+                    raise ValueError(msg)
+                if args.verbose:
+                    print msg
+                    hexdump(packet)
+                return
+    
+            # caplen is actual length, len is reported
+            self.urb_raw = packet
+            self.urb = usb_urb(packet[0:usb_urb_sz])
+            dat_cur = packet[usb_urb_sz:]
+    
+            printv('ID %s' % (urb_id_str(self.urb.id),))
+    
+            # Main packet filtering
+            # Drop if not specified device
+            #print self.pktn_str(), self.urb.device, args.device
+            if args.device is not None and self.urb.device != args.device:
+                return
+    
+            # FIXME: hack to only process control for now
+            if self.urb.transfer_type != URB_CONTROL:
+                comment('WARNING: packet %s: drop packet type %s' % (self.pktn_str(), transfer2str[self.urb.transfer_type]))
+                return
+    
+            # Drop status packets
+            if MODE == 'win' and self.urb.transfer_type == URB_CONTROL:
+                # Control transfer stage
+                # 1: data
+                # 2: status
+                # 'xfer_stage',
+                xfer_stage = ord(dat_cur[0])
+                #print 'xfer_stage: %d' % xfer_stage
+                if xfer_stage == XFER_STATUS:
+                    printv('drop xfer_status')
+                    return
+    
+            # Drop if generic device management traffic
+            if not args.setup and self.urb.transfer_type == URB_CONTROL:
+                def skip():
+                    if MODE == 'win':
+                        # FIXME: broken
+                        # Doesn't seem to be hurting downstream tools, don't worry about for now
+                        return False
+
+                        # Was the submit marked for ignore?
+                        # For some reason these don't have status packets
+                        if self.urb.id in g_pending and g_pending[self.urb.id] is None:
+                            return True
+                        # Submit then
+                        # Skip xfer_stage
+                        ctrl = usb_ctrlrequest(dat_cur[1:])
+                    else:
+                        ctrl = usb_ctrlrequest(self.urb.ctrlrequest[0:usb_ctrlrequest_sz])
+                    reqst = req2s(ctrl)
+                    return reqst in setup_reqs or reqst == "GET_STATUS" and self.urb.type == URB_SUBMIT
+
+                if skip():
+                    print 'Drop setup packet %s' % self.pktn_str()
+                    g_pending[self.urb.id] = None
+                    self.submit = None
+                    self.urb = None
+                    return
+            self.rel_pkt += 1
+            
+            #if args.verbose:
+            #    print "Header size: %lu" % (usb_urb_sz,)
+            #    print_urb(urb)
+    
+            if urb_error(self.urb):
+                self.erros + 1
+                if args.halt:
+                    print "oh noes!"
+                    sys.exit(1)
+            
+            if is_urb_complete(self.urb):
+                if args.verbose:
+                    print 'Pending (%d):' % (len(g_pending),)
+                    for k in g_pending:
+                        print '  %s' % (urb_id_str(k),)
+                # for some reason usbmon will occasionally give packets out of order
+                if not self.urb.id in g_pending:
+                    #raise Exception("Packet %s missing submit.  URB ID: 0x%016lX" % (self.pktn_str(), self.urb.id))
+                    comment("WARNING: Packet %s missing submit.  URB ID: 0x%016lX" % (self.pktn_str(), self.urb.id))
+                    self.pending_complete[self.urb.id] = (self.urb, dat_cur)
+                else:
+                    self.process_complete(dat_cur)
+    
+            elif is_urb_submit(self.urb):
+                # Find the matching submit request
+                if self.urb.transfer_type == URB_CONTROL:
+                    self.processControlSubmit(dat_cur)
+                elif self.urb.transfer_type == URB_BULK:
+                    self.processBulkSubmit(dat_cur)
+                elif self.urb.transfer_type == URB_INTERRUPT:
+                    pending = PendingRX()
+                    pending.raw = self.urb_raw
+                    pending.m_urb = self.urb
+                    pending.packet_number = self.pktn_str()
+                    g_pending[self.urb.id] = pending
+                    printv('Added pending bulk URB %s' % self.urb.id)
                 
-        self.submit = None
-        self.urb = None
+                if MODE == 'lin' and self.urb.id in self.pending_complete:
+                    # oh snap solved a temporal anomaly
+                    urb_submit = self.urb
+                    (urb_complete, dat_cur) = self.pending_complete[self.urb.id]
+                    del self.pending_complete[self.urb.id]
+                    self.urb = urb_complete
+                    self.process_complete(dat_cur)
+                    
+            self.submit = None
+            self.urb = None
+        except:
+            print 'ERROR: packet %s' % self.pktn_str()
+            raise
 
     def pktn_str(self):
         if args.rel_pkt:
@@ -612,6 +813,7 @@ class Gen:
             return self.g_cur_packet
 
     def process_complete(self, dat_cur):
+        printv("process_complete")
         self.submit = g_pending[self.urb.id]
         # Done with it, get rid of it
         del g_pending[self.urb.id]
@@ -645,9 +847,10 @@ class Gen:
                         raise Exception("bad calc: %s" % dt)
                 elif dt >= 0.001:
                     print '%stime.sleep(%.3f)' % (indent, dt)
-        EREMOTEIO = -121
-        if self.urb.status != 0 and not (not args.remoteio and self.urb.status == EREMOTEIO):
-            print '%s# WARNING: complete code %s (%s)' % (indent, self.urb.status,  errno.errorcode.get(-self.urb.status, "unknown"))
+        if MODE == 'lin':
+            EREMOTEIO = -121
+            if self.urb.status != 0 and not (not args.remoteio and self.urb.status == EREMOTEIO):
+                print '%s# WARNING: complete code %s (%s)' % (indent, self.urb.status,  errno.errorcode.get(-self.urb.status, "unknown"))
         
         self.previous_urb_complete_kept = self.urb
 
@@ -664,10 +867,15 @@ class Gen:
         pending.raw = self.urb_raw
         pending.m_urb = self.urb
     
-        if args.verbose:
-            print 'Remaining data: %d' % (len(dat_cur))
-            print 'ctrlrequest: %d' % (len(urb.ctrlrequest))
-        ctrl = usb_ctrlrequest(self.urb.ctrlrequest[0:usb_ctrlrequest_sz])
+        printv('Remaining data: %d' % (len(dat_cur)))
+        #printv('ctrlrequest: %d' % (len(self.urb.ctrlrequest)))
+        if MODE == 'win':
+            # Skip xfer_stage
+            dat_cur = dat_cur[1:]
+            ctrl = usb_ctrlrequest(dat_cur[0:usb_ctrlrequest_sz])
+            dat_cur = dat_cur[usb_ctrlrequest_sz:]
+        else:
+            ctrl = usb_ctrlrequest(self.urb.ctrlrequest[0:usb_ctrlrequest_sz])
         
         if args.verbose:
             print "Packet %s control submit (control info size %lu)" % (self.pktn_str(), 666)
@@ -681,17 +889,16 @@ class Gen:
             dbg("%d: IN" % (self.g_cur_packet))
         else:
             dbg("%d: OUT" % (self.g_cur_packet))
-            if len(dat_cur) != self.urb.data_length:
+            if MODE == 'lin' and len(dat_cur) != self.urb.data_length:
                 comment("WARNING: remaining bytes %d != expected payload out bytes %d" % (len(dat_cur), self.urb.data_length))
                 hexdump(dat_cur, "  ")
-                #raise Exception('See above')
+                raise Exception('See above')
             pending.m_data_out = str(dat_cur)
         
         pending.m_ctrl = ctrl
         pending.packet_number = self.pktn_str()
-        if args.verbose:
-            print 'Added pending control URB %s' % self.urb.id
         g_pending[self.urb.id] = pending
+        printv('Added pending control URB %s, len %d' % (urb_id_str(self.urb.id), len(g_pending)))
 
 
     def processControlCompleteIn(self, dat_cur):
@@ -699,16 +906,21 @@ class Gen:
         data_size = 0
         data_str = "None"
         max_payload_sz = self.submit.m_ctrl.wLength
-        
+
+        if MODE == 'win':
+            # Skip xfer_stage
+            dat_cur = dat_cur[1:]
+            #print 'shorten'
+
         # Is it legal to have a 0 length control in?
         if self.submit.m_ctrl.wLength:
             data_str = "buff"
             data_size = self.submit.m_ctrl.wLength
         elif args.ofmt == 'libusbpy':
             data_str = "\"\""
-        
+
         printControlRequest(self.submit, data_str, data_size, "usb_rcvctrlpipe(%s, 0), " % (deviceStr(),) )
-        
+
         # Verify we actually have enough / expected
         # If exact match don't care
         if len(dat_cur) != max_payload_sz:
@@ -746,19 +958,29 @@ class Gen:
     def processControlCompleteOut(self, dat_cur):
         data_size = 0
         data_str = "None"
-        
+        data = None
+    
         #print 'Control out w/ len %d' % len(submit.m_data_out)
-        
+
         # print "Data out size: %u vs urb size %u" % (submit.m_data_out_size, submit.m_urb.data_length )
-        if len(self.submit.m_data_out):
-            # Note that its the submit from earlier, not the ack that we care about
-            data_str = bytes2AnonArray(self.submit.m_data_out)
-            data_size = len(self.submit.m_data_out)
-        elif args.ofmt == 'libusbpy':
+        if MODE == 'win':
+            # For some reason the request data is in the reply
+            # Skip xfer_type
+            data = dat_cur[1:]
+        else:
+            if len(self.submit.m_data_out):
+                # Note that its the submit from earlier, not the ack that we care about
+                data = self.submit.m_data_out
+
+        if data:
+            data_str = bytes2AnonArray(data)
+            data_size = len(data)            
+
+        if data_size == 0 and args.ofmt == 'libusbpy':
             data_str = "\"\""
-        
+
         printControlRequest(self.submit, data_str, data_size, "usb_sndctrlpipe(%s, 0), " % (deviceStr()) )
-        
+    
         if args.ofmt == 'json':
             oj['data'].append({
                     'type': 'controlWrite',
@@ -766,14 +988,14 @@ class Gen:
                     'req': self.submit.m_ctrl.bRequest,
                     'val': self.submit.m_ctrl.wValue, 
                     'ind': self.submit.m_ctrl.wIndex, 
-                    'data': bytes2AnonArray(self.submit.m_data_out),
+                    'data': bytes2AnonArray(data),
                     'packn': self.packnumt(),
                     })
-        
+
     def processControlComplete(self, dat_cur):
         if args.comment:
             req_comment(self.submit.m_ctrl, self.submit.m_data_out)
-        
+
         if self.submit.m_ctrl.bRequestType & URB_TRANSFER_IN:
             self.processControlCompleteIn(dat_cur)
         else:
@@ -821,12 +1043,10 @@ class Gen:
         pending.raw = self.urb_raw
         pending.m_urb = self.urb
     
-        if args.verbose:
-            print 'Remaining data: %d' % (len(dat_cur))
-        
-        #if args.verbose:
-        #    print "Packet %d bulk submit (control info size %lu)" % (self.pktn_str(), 666)
-        
+        printv('Remaining data: %d' % (len(dat_cur)))
+
+        # printv("Packet %d bulk submit (control info size %lu)" % (self.pktn_str(), 666))
+
         
         if self.urb.endpoint & URB_TRANSFER_IN:
             dbg("%d: IN" % (self.g_cur_packet))
@@ -835,14 +1055,13 @@ class Gen:
             if len(dat_cur) != self.urb.data_length:
                 comment("WARNING: remaining bytes %d != expected payload out bytes %d" % (len(dat_cur), self.urb.data_length))
                 hexdump(dat_cur, "  ")
-                #raise Exception('See above')
+                raise Exception('See above')
             pending.m_data_out = str(dat_cur)
 
         
         pending.packet_number = self.pktn_str()
-        if args.verbose:
-            print 'Added pending bulk URB %s' % self.urb.id
         g_pending[self.urb.id] = pending
+        printV('Added pending bulk URB %s' % self.urb.id)
 
 
     def processBulkCompleteIn(self, dat_cur):
@@ -942,11 +1161,11 @@ class Gen:
         else:
             g_payload_bytes.bulk.out += self.urb.data_length
             self.processBulkCompleteOut(dat_cur)
-    
+
     def processInterruptComplete(self, dat_cur):
         if args.ofmt in ('LINUX', 'LIBUSB'):
             print
-        print '%s# WARNING: omitting interrupt' % (indent,)
+        #print '%s# WARNING: omitting interrupt' % (indent,)
 
 args = None
 if __name__ == "__main__":
@@ -955,7 +1174,7 @@ if __name__ == "__main__":
     parser.add_argument('-k', dest='ofmt', default='libusbpy', action='store_const', const='linux', help='output linux kenrel')
     parser.add_argument('-l', dest='ofmt', action='store_const', const='libusb', help='output libusb')
     parser.add_argument('-p', dest='ofmt', action='store_const', const='libusbpy', help='output libusb python')
-    parser.add_argument('-j', dest='ofmt', action='store_const', const='json', help='output json')
+    parser.add_argument('-j', '--json', dest='ofmt', action='store_const', const='json', help='output json')
     parser.add_argument('-s', help='allow short')
     parser.add_argument('-f', help='custom call')
     add_bool_arg(parser, '--packet-numbers', default=True, help='print packet numbers') 
@@ -1015,11 +1234,7 @@ def validate_read(expected, actual, msg):
         print '  Actual:   %s' % binascii.hexlify(actual,)
         #raise Exception('failed validate: %s' % msg)
 
-'''
-    if args.ofmt == 'LIBUSBPY':
-        print 'def replay(dev):'
-        indent = "    "
-        print '''\
+def replay(dev):
     def bulkRead(endpoint, length, timeout=None):
         if timeout is None:
             timeout = 1000
@@ -1044,6 +1259,7 @@ def validate_read(expected, actual, msg):
         dev.controlWrite(request_type, request, value, index, data,
                      timeout=timeout)
 '''
+        indent += '    '
 
     if args.ofmt in ('LINUX', 'LIBUSB'):
         print "int n_rw = 0;"
@@ -1074,6 +1290,7 @@ def validate_read(expected, actual, msg):
     if len(g_pending) != 0:
         comment("WARNING: %lu pending requests" % (len(g_pending)))
 
+    comment("Errors %s" % gen.errors)
 
     if args.ofmt == 'libusbpy':
         print '''
