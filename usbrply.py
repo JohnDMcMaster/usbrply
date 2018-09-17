@@ -870,7 +870,8 @@ if __name__ == "__main__":
         # If exact match don't care
         if len(dat_cur) != max_payload_sz:
             if len(dat_cur) < max_payload_sz:
-                comment("NOTE:: req max %u but got %u" % (max_payload_sz, len(dat_cur)))
+                if args.print_short:
+                    comment("NOTE:: req max %u but got %u" % (max_payload_sz, len(dat_cur)))
             else:
                 raise Exception('invalid response')
         
@@ -960,7 +961,8 @@ if __name__ == "__main__":
         if args.packet_numbers:
             comment("Generated from packet %s/%s" % (self.submit.packet_number, self.pktn_str()))
         else:
-            comment("Generated from packet %s/%s" % (None, None))
+            #comment("Generated from packet %s/%s" % (None, None))
+            pass
 
     def packnumt(self):
         if args.packet_numbers:
@@ -1044,7 +1046,8 @@ if __name__ == "__main__":
         # If exact match don't care
         if len(dat_cur) != max_payload_sz:
             if len(dat_cur) < max_payload_sz:
-                comment("NOTE:: req max %u but got %u" % (max_payload_sz, len(dat_cur)))
+                if args.print_short:
+                    comment("NOTE:: req max %u but got %u" % (max_payload_sz, len(dat_cur)))
             else:
                 raise Exception('invalid response')
         
@@ -1129,6 +1132,7 @@ if __name__ == "__main__":
     add_bool_arg(parser, '--rel-pkt', default=False, help='Only count kept packets')
     # http://sourceforge.net/p/libusb/mailman/message/25635949/
     add_bool_arg(parser, '--remoteio', default=False, help='Warn on -EREMOTEIO resubmit (default: ignore)')
+    add_bool_arg(parser, '--print-short', default=False, help='Print warning when request returns less data than requested')
     add_bool_arg(parser, '--setup', default=False, help='Emit initialization packets like CLEAR_FEATURE, SET_FEATURE')
 
     parser.add_argument('fin', help='File name in')
