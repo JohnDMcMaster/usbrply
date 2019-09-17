@@ -35,7 +35,7 @@ setup(
     install_requires=[
         #'pcap',
     ],
-    long_description=read('README.txt'),
+    long_description=read('README.md'),
     classifiers=[
         "License :: OSI Approved :: BSD License",
     ],
