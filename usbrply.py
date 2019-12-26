@@ -580,7 +580,7 @@ def validate_read(expected, actual, msg):
     def controlWrite(request_type, request, value, index, data,
                      timeout=None):
         dev.controlWrite(request_type, request, value, index, data,
-                     timeout=timeout=(1000 if timeout is None else timeout))
+                     timeout=(1000 if timeout is None else timeout))
 '''
 
         if args.ofmt in ('LINUX', 'LIBUSB'):
