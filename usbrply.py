@@ -21,6 +21,9 @@ g_max_packet = float('inf')
 VERSION_STR    = "0.1"
 indent = ""
 
+vid = 0
+pid = 0
+
 def indent_inc():
     global indent
 
@@ -624,7 +627,7 @@ def open_dev(usbcontext=None):
     for udev in usbcontext.getDeviceList(skip_on_error=True):
         vid = udev.getVendorID()
         pid = udev.getProductID()
-        if (vid, pid) == (0x14b9, 0x0001):
+        if (vid, pid) == (''' + "0x%04X, 0x%04X" % (vid, pid) + '''):
             print
             print
             print 'Found device'
@@ -1142,9 +1145,13 @@ if __name__ == "__main__":
     add_bool_arg(parser, '--print-short', default=False, help='Print warning when request returns less data than requested')
     add_bool_arg(parser, '--setup', default=False, help='Emit initialization packets like CLEAR_FEATURE, SET_FEATURE')
     add_bool_arg(parser, '--wrapper', default=False, help='Emit code to make it a full executable program')
-
+    parser.add_argument('--vid', default='0')
+    parser.add_argument('--pid', default='0')
     parser.add_argument('fin', help='File name in')
     args = parser.parse_args()
+
+    vid = int(args.vid, 0)
+    pid = int(args.pid, 0)
 
     if args.range:
         (g_min_packet, g_max_packet) = args.range.split(':')
