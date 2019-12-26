@@ -21,6 +21,17 @@ g_max_packet = float('inf')
 VERSION_STR    = "0.1"
 indent = ""
 
+def indent_inc():
+    global indent
+
+    indent += "    "
+
+def indent_dec():
+    global indent
+
+    indent = indent[4:]
+
+
 '''
 pcap/usb.h compat
 '''
@@ -536,8 +547,9 @@ class Gen:
         comment("uvusbreplay copyright 2011 John McMaster <JohnDMcMaster@gmail.com>")
         # comment("Date: %s" % (UVDCurDateTime()))
         comment("cmd: %s" % (' '.join(sys.argv),))
-        if args.ofmt == 'libusbpy':
-            print '''        
+        if args.wrapper:
+            if args.ofmt == 'libusbpy':
+                print '''
 import binascii
 import time
 import usb1
@@ -550,33 +562,25 @@ def validate_read(expected, actual, msg):
         #raise Exception('failed validate: %s' % msg)
 
 '''
-        if args.ofmt == 'LIBUSBPY':
-            print 'def replay(dev):'
-            indent = "    "
-            print '''\
+            if args.ofmt == 'libusbpy':
+                print 'def replay(dev):'
+                indent_inc()
+                print '''\
     def bulkRead(endpoint, length, timeout=None):
-        if timeout is None:
-            timeout = 1000
-        return dev.bulkRead(endpoint, length, timeout=timeout)
+        return dev.bulkRead(endpoint, length, timeout=(1000 if timeout is None else timeout))
 
     def bulkWrite(endpoint, data, timeout=None):
-        if timeout is None:
-            timeout = 1000
-        dev.bulkWrite(endpoint, data, timeout=timeout)
+        dev.bulkWrite(endpoint, data, timeout=(1000 if timeout is None else timeout))
     
     def controlRead(request_type, request, value, index, length,
                     timeout=None):
-        if timeout is None:
-            timeout = 1000
         return dev.controlRead(request_type, request, value, index, length,
-                    timeout=timeout)
+                    timeout=(1000 if timeout is None else timeout))
 
     def controlWrite(request_type, request, value, index, data,
                      timeout=None):
-        if timeout is None:
-            timeout = 1000
         dev.controlWrite(request_type, request, value, index, data,
-                     timeout=timeout)
+                     timeout=timeout=(1000 if timeout is None else timeout))
 '''
 
         if args.ofmt in ('LINUX', 'LIBUSB'):
@@ -610,7 +614,8 @@ def validate_read(expected, actual, msg):
 
 
         if args.ofmt == 'libusbpy':
-            print '''
+            if args.wrapper:
+                print '''
 def open_dev(usbcontext=None):
     if usbcontext is None:
         usbcontext = usb1.USBContext()
@@ -896,10 +901,11 @@ if __name__ == "__main__":
                 packet_numbering = "packet"
             
     
-            if args.ofmt == 'libusbpy':
-                print "%svalidate_read(%s, buff, \"%s\")" % (indent, bytes2AnonArray(dat_cur, "char"),  packet_numbering )
-            elif args.ofmt in ('LINUX', 'LIBUSB'):
-                print "%svalidate_read(%s, %u, buff, n_rw, \"%s\");" % (indent, bytes2AnonArray(dat_cur, "char"), packet_numbering )
+            if args.wrapper:
+                if args.ofmt == 'libusbpy':
+                    print "%svalidate_read(%s, buff, \"%s\")" % (indent, bytes2AnonArray(dat_cur, "char"),  packet_numbering )
+                elif args.ofmt in ('LINUX', 'LIBUSB'):
+                    print "%svalidate_read(%s, %u, buff, n_rw, \"%s\");" % (indent, bytes2AnonArray(dat_cur, "char"), packet_numbering )
     
     def processControlCompleteOut(self, dat_cur):
         data_size = 0
@@ -1063,10 +1069,11 @@ if __name__ == "__main__":
                 fn = os.path.join(args.bulk_dir, 'pkt%06d_bulk_in.bin' % self.pktn_str())
                 print 'Saving %s, len %d' % (fn, len(dat_cur))
                 open(fn, 'w').write(dat_cur)
-            elif args.ofmt == 'libusbpy':
-                print "%svalidate_read(%s, buff, \"%s\")" % (indent, bytes2AnonArray(dat_cur, "char"),  packet_numbering )
-            elif args.ofmt in ('LINUX', 'LIBUSB'):
-                print "%svalidate_read(%s, %u, buff, n_rw, \"%s\");" % (indent, bytes2AnonArray(dat_cur, "char"), packet_numbering )
+            elif args.wrapper:
+                if args.ofmt == 'libusbpy':
+                    print "%svalidate_read(%s, buff, \"%s\")" % (indent, bytes2AnonArray(dat_cur, "char"),  packet_numbering )
+                elif args.ofmt in ('LINUX', 'LIBUSB'):
+                    print "%svalidate_read(%s, %u, buff, n_rw, \"%s\");" % (indent, bytes2AnonArray(dat_cur, "char"), packet_numbering )
         
     
     
@@ -1134,6 +1141,7 @@ if __name__ == "__main__":
     add_bool_arg(parser, '--remoteio', default=False, help='Warn on -EREMOTEIO resubmit (default: ignore)')
     add_bool_arg(parser, '--print-short', default=False, help='Print warning when request returns less data than requested')
     add_bool_arg(parser, '--setup', default=False, help='Emit initialization packets like CLEAR_FEATURE, SET_FEATURE')
+    add_bool_arg(parser, '--wrapper', default=False, help='Emit code to make it a full executable program')
 
     parser.add_argument('fin', help='File name in')
     args = parser.parse_args()
