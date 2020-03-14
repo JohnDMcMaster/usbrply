@@ -279,11 +279,11 @@ def printControlRequest(submit, data_str, data_size, pipe_str):
 
 def bytes2AnonArray(bytes, byte_type = "uint8_t"):
     if args.ofmt == 'libusbpy':
-        byte_str = "\""
+        byte_str = "b\""
     
         for i in xrange(len(bytes)):
             if i and i % 16 == 0:
-                byte_str += '\"\n            \"'
+                byte_str += '\"\n            b\"'
             byte_str += "\\x%02X" % (ord(bytes[i]),)
         return byte_str + "\""
     elif args.ofmt == 'json':
@@ -559,9 +559,9 @@ import usb1
 
 def validate_read(expected, actual, msg):
     if expected != actual:
-        print 'Failed %s' % msg
-        print '  Expected; %s' % binascii.hexlify(expected,)
-        print '  Actual:   %s' % binascii.hexlify(actual,)
+        print('Failed %s' % msg)
+        print('  Expected; %s' % binascii.hexlify(expected,))
+        print('  Actual:   %s' % binascii.hexlify(actual,))
         #raise Exception('failed validate: %s' % msg)
 
 '''
@@ -623,19 +623,19 @@ def open_dev(usbcontext=None):
     if usbcontext is None:
         usbcontext = usb1.USBContext()
     
-    print 'Scanning for devices...'
+    print('Scanning for devices...')
     for udev in usbcontext.getDeviceList(skip_on_error=True):
         vid = udev.getVendorID()
         pid = udev.getProductID()
         if (vid, pid) == (''' + "0x%04X, 0x%04X" % (vid, pid) + '''):
-            print
-            print
-            print 'Found device'
-            print 'Bus %03i Device %03i: ID %04x:%04x' % (
+            print()
+            print()
+            print('Found device')
+            print('Bus %03i Device %03i: ID %04x:%04x' % (
                 udev.getBusNumber(),
                 udev.getDeviceAddress(),
                 vid,
-                pid)
+                pid))
             return udev.open()
     raise Exception("Failed to find a device")
 
