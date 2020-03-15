@@ -856,7 +856,7 @@ if __name__ == "__main__":
                 comment("WARNING: remaining bytes %d != expected payload out bytes %d" % (len(dat_cur), self.urb.data_length))
                 hexdump(dat_cur, "  ")
                 #raise Exception('See above')
-            pending.m_data_out = str(dat_cur)
+            pending.m_data_out = bytes(dat_cur)
         
         pending.m_ctrl = ctrl
         pending.packet_number = self.pktn_str()
@@ -1010,7 +1010,7 @@ if __name__ == "__main__":
                 comment("WARNING: remaining bytes %d != expected payload out bytes %d" % (len(dat_cur), self.urb.data_length))
                 hexdump(dat_cur, "  ")
                 #raise Exception('See above')
-            pending.m_data_out = str(dat_cur)
+            pending.m_data_out = bytes(dat_cur)
 
         
         pending.packet_number = self.pktn_str()
