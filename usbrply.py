@@ -188,7 +188,7 @@ usb_ctrlrequest_nt = namedtuple('usb_ctrlrequest', ('bRequestType',
 usb_ctrlrequest_fmt = '<BBHHHH'
 usb_ctrlrequest_sz = struct.calcsize(usb_ctrlrequest_fmt)
 def usb_ctrlrequest(s):
-    return usb_ctrlrequest_nt(*struct.unpack(usb_ctrlrequest_fmt, str(s)))
+    return usb_ctrlrequest_nt(*struct.unpack(usb_ctrlrequest_fmt, bytes(s)))
 
 
 def printControlRequest(submit, data_str, data_size, pipe_str):
@@ -277,30 +277,36 @@ def printControlRequest(submit, data_str, data_size, pipe_str):
     else:
         raise Exception("Unknown output")
 
-def bytes2AnonArray(bytes, byte_type = "uint8_t"):
+def bytes2AnonArray(bytes_data, byte_type = "uint8_t"):
+    # In Python2 bytes_data is a string, in Python3 it's bytes.
+    # The element type is different (string vs int) and we have to deal
+    # with that when printing this number as hex.
+    if sys.version_info[0] == 2:
+        myord = ord
+    else:
+        myord = lambda x: x
     if args.ofmt == 'libusbpy':
         byte_str = "b\""
     
-        for i in xrange(len(bytes)):
+        for i in range(len(bytes_data)):
             if i and i % 16 == 0:
                 byte_str += '\"\n            b\"'
-            byte_str += "\\x%02X" % (ord(bytes[i]),)
+            byte_str += "\\x%02X" % (myord(bytes_data[i]),)
         return byte_str + "\""
     elif args.ofmt == 'json':
-        return binascii.hexlify(bytes)
+        return binascii.hexlify(bytes_data)
     else:
         byte_str = "(%s[]){" % (byte_type,)
         pad = ""
         
-        bytes = bytearray(bytes)
-        for i in xrange(len(bytes)):
+        for i in range(len(bytes_data)):
             if i % 16 == 0:
                 pad = ""
                 if i != 0:
                     byte_str += ",\n        "
                 
             byte_str += pad
-            byte_str += "0x%02X" % bytes[i]
+            byte_str += "0x%02X" % bytes_data[i]
             pad = ", "
         
         return byte_str + "}"
@@ -520,7 +526,7 @@ usb_urb_fmt = ('<'
         '24s')
 usb_urb_sz = struct.calcsize(usb_urb_fmt)
 def usb_urb(s):
-    return  usb_urb_nt(*struct.unpack(usb_urb_fmt, str(s)))
+    return  usb_urb_nt(*struct.unpack(usb_urb_fmt, bytes(s)))
 
 class Gen:
     def __init__(self):
@@ -799,7 +805,7 @@ if __name__ == "__main__":
                 
                 # mind order of operations here...was having round off issues
                 ds = self.submit.m_urb.sec - prev.sec
-                dt = ds + self.submit.m_urb.usec/1.e6 - prev.usec/1.e6
+                dt = ds + self.submit.m_urb.usec//1.e6 - prev.usec//1.e6
                 if dt < -1.e-6:
                     # stupid reversed packets
                     if 0:
