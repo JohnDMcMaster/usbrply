@@ -4,11 +4,11 @@ from .usb import *
 
 import pcap
 import sys
-
 """
 Quick hack to detect packet format
 I don't think the API i'm using 
 """
+
 
 def guess_linux(buff):
     """
@@ -21,6 +21,7 @@ def guess_linux(buff):
         return False
     return sum(buff[0x1C:0x20]) == 0
 
+
 def guess_windows(buff):
     """
     windows heuristics
@@ -31,6 +32,7 @@ def guess_windows(buff):
     if len(buff) < 0x24:
         return False
     return sum(buff[0x0A:0x0E]) == 0
+
 
 def guess_parser(fn):
     windows = [0]
@@ -46,7 +48,7 @@ def guess_parser(fn):
     p = pcap.pcapObject()
     p.open_offline(fn)
     p.loop(3, loop_cb_guess)
-    
+
     if windows[0]:
         assert linux[0] == 0
         return "win-pcap"

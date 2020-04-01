@@ -9,6 +9,7 @@ from . import pcap_util
 import json
 import sys
 
+
 def pcap_gen(args):
     # TODO: add Windows engine back in
 
@@ -20,11 +21,12 @@ def pcap_gen(args):
     cls = {
         "lin-pcap": lin_pcap.Gen,
         "win-pcap": win_pcap.Gen,
-        }[parser]
+    }[parser]
     gen = cls(args)
 
     for p in gen.run():
         yield p
+
 
 def pcap2json(args):
 

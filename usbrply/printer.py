@@ -2,18 +2,22 @@ import json
 
 indent = ""
 
+
 def indent_inc():
     global indent
 
     indent += "    "
+
 
 def indent_dec():
     global indent
 
     indent = indent[4:]
 
+
 def indented(s):
     print("%s%s" % (indent, s))
+
 
 class Printer(object):
     def __init__(self, args):
@@ -21,6 +25,7 @@ class Printer(object):
 
     def run(self, j):
         raise Exception("Required")
+
 
 class JSONPrinter(Printer):
     def __init__(self, args):

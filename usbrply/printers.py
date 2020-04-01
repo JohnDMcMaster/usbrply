@@ -1,6 +1,7 @@
 from printer import JSONPrinter
 from pyprinter import LibusbPyPrinter
 
+
 def run(args, j):
     pass
 

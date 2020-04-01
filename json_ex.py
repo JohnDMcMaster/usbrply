@@ -6,6 +6,7 @@ import binascii
 
 prefix = ' ' * 8
 
+
 def str2hex(buff, prefix='', terse=True):
     if len(buff) == 0:
         return '""'
@@ -21,15 +22,17 @@ def str2hex(buff, prefix='', terse=True):
                 ret += '"'
             if not terse or len(buff) > 16:
                 ret += '%s"' % prefix
-            
-        ret += "\\x%02X" % (buff[i],)
+
+        ret += "\\x%02X" % (buff[i], )
     return ret + '"'
+
 
 def fmt_terse(data):
     ret = str2hex(data, prefix=prefix)
     if len(data) > 16:
         ret += '\n%s' % prefix
     return ret
+
 
 def dump(fin):
     j = json.load(open(fin))
@@ -49,18 +52,19 @@ def dump(fin):
             validate_read("\x00\x00\x00", buff, "packet 6/7")
             '''
             print 'buff = controlRead(0x%02X, 0x%02X, 0x%04X, 0x%04X, %d)' % (
-                    p['req'], p['reqt'], p['val'], p['ind'], p['len'])
+                p['req'], p['reqt'], p['val'], p['ind'], p['len'])
             data = binascii.unhexlify(p['data'])
             print '# Req: %d, got: %d' % (p['len'], len(data))
             print 'validate_read(%s, buff, "packet %d/%d")' % (
-                    fmt_terse(data), p['packn'][0], p['packn'][1])
+                fmt_terse(data), p['packn'][0], p['packn'][1])
         elif p['type'] == 'controlWrite':
             '''
             controlWrite(0x40, 0xB2, 0x0000, 0x0000, "")
             '''
             data = binascii.unhexlify(p['data'])
             print 'buff = controlWrite(0x%02X, 0x%02X, 0x%04X, 0x%04X, %s)' % (
-                    p['req'], p['reqt'], p['val'], p['ind'], str2hex(data, prefix=prefix))
+                p['req'], p['reqt'], p['val'], p['ind'],
+                str2hex(data, prefix=prefix))
         elif p['type'] == 'bulkRead':
             '''
             buff = bulkRead(0x86, 0x0200)
@@ -71,19 +75,22 @@ def dump(fin):
             data = binascii.unhexlify(p['data'])
             print '# Req: %d, got: %d' % (p['len'], len(data))
             print 'validate_read(%s, buff, "packet %d/%d")' % (
-                    fmt_terse(data), p['packn'][0], p['packn'][1])
+                fmt_terse(data), p['packn'][0], p['packn'][1])
         elif p['type'] == 'bulkWrite':
             '''
             bulkWrite(0x02, "\x01")
             '''
             data = binascii.unhexlify(p['data'])
-            print 'bulkWrite(0x%02X, %s)' % (p['endp'], str2hex(data, prefix=' '*8))
+            print 'bulkWrite(0x%02X, %s)' % (p['endp'],
+                                             str2hex(data, prefix=' ' * 8))
         else:
             raise Exception("Unknown type: %s" % p['type'])
         pi += 1
+
+
 if __name__ == "__main__":
-    import argparse 
-    
+    import argparse
+
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('fin')
     args = parser.parse_args()
