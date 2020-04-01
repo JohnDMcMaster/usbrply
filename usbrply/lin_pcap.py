@@ -12,33 +12,14 @@ import struct
 from collections import namedtuple
 import os
 import errno
-import json
 
 args = None
 
 g_min_packet = 0
 g_max_packet = float('inf')
 
-VERSION_STR    = "0.1"
-indent = ""
-
 vid = 0
 pid = 0
-
-def indent_inc():
-    global indent
-
-    indent += "    "
-
-def indent_dec():
-    global indent
-
-    indent = indent[4:]
-
-
-'''
-pcap/usb.h compat
-'''
 
 '''
 possible transfer mode
@@ -108,16 +89,12 @@ def dbg(s):
         print(s)
 
 def comment(s):
-    if args.ofmt == 'bin':
-        print('%s%s' % (indent, s))
-    elif args.ofmt == 'libusbpy':
-        print('%s# %s' % (indent, s))
-    elif args.ofmt == 'json':
-        oj['data'].append({
-                'type': 'comment', 
-                'v': s})
-    else:
-        print('%s//%s' % (indent, s))
+    oj['data'].append({
+            'type': 'comment', 
+            'v': s})
+
+def warning(s):
+    comment('WARNING: %s' % s)
 
 # When we get an IN request we may process packets in between
 class PendingRX:
@@ -133,13 +110,6 @@ class PendingRX:
         
         # uint8_t *m_data_out
         self.m_data_out = None
-
-def add_bool_arg(parser, yes_arg, default=False, **kwargs):
-    dashed = yes_arg.replace('--', '')
-    dest = dashed.replace('-', '_')
-    parser.add_argument(yes_arg, dest=dest, action='store_true', default=default, **kwargs)
-    kwargs['help'] = 'Disable above'
-    parser.add_argument('--no-' + dashed, dest=dest, action='store_false', **kwargs)
 
 # Pending requests
 # Typically size 0-1 but sometimes more pile up
@@ -191,93 +161,6 @@ usb_ctrlrequest_sz = struct.calcsize(usb_ctrlrequest_fmt)
 def usb_ctrlrequest(s):
     return usb_ctrlrequest_nt(*struct.unpack(usb_ctrlrequest_fmt, bytes(s)))
 
-
-def printControlRequest(submit, data_str, data_size, pipe_str):
-    '''
-    unsigned int dev_control_message(int requesttype, int request,
-            int value, int index, char *bytes, int size):
-            
-    WARNING: request / request type parameters are swapped between kernel and libusb
-    request type is clearly listed first in USB spec and seems more logically first so I'm going to blame kernel on this
-    although maybe libusb came after and was trying for multi OS comatibility right off the bat
-    
-    Anyway, use dev_control_message for finer grained (eg macro) support
-
-    libusb
-    int usb_control_msg(usb_dev_handle *dev, int requesttype, int request, int value, int index, char *bytes, int size, int timeout)
-
-    kernel
-    extern int usb_control_msg(struct usb_device *dev, unsigned int pipe,
-        __u8 request, __u8 requesttype, __u16 value, __u16 index,
-        def *data, __u16 size, int timeout)
-    
-    Example output:
-    n_rw = dev_ctrl_msg(0x0B, URB_TRANSFER_IN | USB_TYPE_VENDOR | USB_RECIP_DEVICE, 0xAD16, 0xAD15, buff, 1, 500)
-
-
-    def controlWrite(self, request_type, request, value, index, data, timeout=0):
-    def controlRead(self, request_type, request, value, index, length, timeout=0):
-    self.dev.controlWrite(0x40, 0x00, 0x0001, 0x0001, '')
-    '''
-    
-    if args.ofmt == 'bin':
-        pass
-    elif args.ofmt == 'libusbpy':
-        #std::string bRequestStr = get_request_str( submit.m_ctrl.bRequestType, submit.m_ctrl.bRequest )
-        #std::string bRequestTypeStr = get_request_type_str(submit.m_ctrl.bRequestType)
-        if submit.m_ctrl.bRequestType & URB_TRANSFER_IN:
-            print("%sbuff = controlRead(0x%02X, 0x%02X, 0x%04X, 0x%04X, %u)" % (indent, submit.m_ctrl.bRequestType, submit.m_ctrl.bRequest,
-                    submit.m_ctrl.wValue, submit.m_ctrl.wIndex, data_size))
-        else:
-            print("%scontrolWrite(0x%02X, 0x%02X, 0x%04X, 0x%04X, %s)" % (indent, submit.m_ctrl.bRequestType, submit.m_ctrl.bRequest,
-                    submit.m_ctrl.wValue, submit.m_ctrl.wIndex, data_str))
-    elif args.ofmt == 'json':
-        pass
-    elif args.ofmt in ('libusb', 'linux'):
-        timeout = ''
-        out = ''
-    
-        out += "n_rw = "
-        if args.cc:
-            out += "dev_ctrl_msg("
-        else:
-            device_str = "g_dev"
-            out += "usb_control_msg(%s, " % device_str
-        
-        
-        if args.ofmt == 'linux':
-            out += "%s", pipe_str
-        
-        
-        bRequestStr = request_type2str[ self.submit.m_ctrl.bRequestType, self.submit.m_ctrl.bRequest ]
-        bRequestTypeStr = ""
-        
-        if args.ofmt == 'libusb' and not args.define:
-            bRequestTypeStr = "0x%02X" % self.submit.m_ctrl.bRequestType
-        else:
-            bRequestTypeStr = request_type2str[self.submit.m_ctrl.bRequestType]
-        
-        
-        if args.ofmt == 'libusb':
-            out += "%s, %s, " % (bRequestTypeStr, bRequestStr)
-        else:
-            out += "%s, %s, " % (bRequestStr, bRequestTypeStr)
-        
-        
-        if args.cc:
-            timeout = ""
-        else:
-            timeout = ", 500"
-        
-        
-        out += "0x%04X, 0x%04X, %s, %u%s);" % (
-                submit.m_ctrl.wValue, submit.m_ctrl.wIndex,
-                data_str, data_size,
-                timeout )
-        print(out)
-    else:
-        raise Exception("Unknown output")
-
 def bytes2AnonArray(bytes_data, byte_type = "uint8_t"):
     # In Python2 bytes_data is a string, in Python3 it's bytes.
     # The element type is different (string vs int) and we have to deal
@@ -286,32 +169,7 @@ def bytes2AnonArray(bytes_data, byte_type = "uint8_t"):
         myord = ord
     else:
         myord = lambda x: x
-    if args.ofmt == 'libusbpy':
-        byte_str = "b\""
-    
-        for i in range(len(bytes_data)):
-            if i and i % 16 == 0:
-                byte_str += '\"\n            b\"'
-            byte_str += "\\x%02X" % (myord(bytes_data[i]),)
-        return byte_str + "\""
-    elif args.ofmt == 'json':
-        return binascii.hexlify(bytes_data)
-    else:
-        byte_str = "(%s[]){" % (byte_type,)
-        pad = ""
-        
-        for i in range(len(bytes_data)):
-            if i % 16 == 0:
-                pad = ""
-                if i != 0:
-                    byte_str += ",\n        "
-                
-            byte_str += pad
-            byte_str += "0x%02X" % bytes_data[i]
-            pad = ", "
-        
-        return byte_str + "}"
-
+    return binascii.hexlify(bytes_data)
 
 def deviceStr():
     # return "dev.udev"
@@ -529,11 +387,16 @@ usb_urb_sz = struct.calcsize(usb_urb_fmt)
 def usb_urb(s):
     return  usb_urb_nt(*struct.unpack(usb_urb_fmt, bytes(s)))
 
+def update_args(args_):
+    global args
+    args = args_
+
 class Gen:
-    def __init__(self):
+    def __init__(self, args):
+        update_args(args)
+
         self.g_cur_packet = 0
         self.rel_pkt = 0
-        self.previous_urb_complete_kept = None
         self.pending_complete = {}
         self.device_keep = args.device
 
@@ -552,65 +415,8 @@ class Gen:
             p.open_offline(args.fin)
             p.loop(-1, self.loop_cb_devmax)
             comment('Selected device %u' % self.device_keep)
+            self.g_cur_packet = 0
 
-        comment("Generated by uvusbreplay %s" % (VERSION_STR,))
-        comment("uvusbreplay copyright 2011 John McMaster <JohnDMcMaster@gmail.com>")
-        # comment("Date: %s" % (UVDCurDateTime()))
-        comment("cmd: %s" % (' '.join(sys.argv),))
-        if args.wrapper:
-            if args.ofmt == 'libusbpy':
-                print('''
-import binascii
-import time
-import usb1
-
-def validate_read(expected, actual, msg):
-    if expected != actual:
-        print('Failed %s' % msg)
-        print('  Expected; %s' % binascii.hexlify(expected,))
-        print('  Actual:   %s' % binascii.hexlify(actual,))
-        #raise Exception('failed validate: %s' % msg)
-
-''')
-            if args.ofmt == 'libusbpy':
-                print('def replay(dev):')
-                indent_inc()
-                print('''\
-    def bulkRead(endpoint, length, timeout=None):
-        return dev.bulkRead(endpoint, length, timeout=(1000 if timeout is None else timeout))
-
-    def bulkWrite(endpoint, data, timeout=None):
-        dev.bulkWrite(endpoint, data, timeout=(1000 if timeout is None else timeout))
-    
-    def controlRead(request_type, request, value, index, length,
-                    timeout=None):
-        return dev.controlRead(request_type, request, value, index, length,
-                    timeout=(1000 if timeout is None else timeout))
-
-    def controlWrite(request_type, request, value, index, data,
-                     timeout=None):
-        dev.controlWrite(request_type, request, value, index, data,
-                     timeout=(1000 if timeout is None else timeout))
-''')
-
-        if args.ofmt in ('LINUX', 'LIBUSB'):
-            print("int n_rw = 0;")
-            print("uint8_t buff[4096];")
-        
-        if args.ofmt == 'LIBUSB' and args.define:
-            # Libusb expects users to hard code these into address I guess
-            print("# Directions")
-            print("# to device")
-            print("const int USB_DIR_OUT = 0;")
-            print("# to host")
-            print("const int URB_TRANSFER_IN = 0x80;")
-            print("const int USB_TYPE_MASK = (0x03 << 5);")
-            print("const int USB_TYPE_STANDARD = (0x00 << 5);")
-            print("const int USB_TYPE_CLASS = (0x01 << 5);")
-            print("const int USB_TYPE_VENDOR = (0x02 << 5);")
-            print("const int USB_TYPE_RESERVED = (0x03 << 5);")
-
-        print("")
     
         dbg("parsing from range %s to %s" % (g_min_packet, g_max_packet))
         
@@ -620,48 +426,11 @@ def validate_read(expected, actual, msg):
         p.loop(-1, self.loop_cb)
         
         if len(g_pending) != 0:
-            comment("WARNING: %lu pending requests" % (len(g_pending)))
+            warning("%lu pending requests" % (len(g_pending)))
 
-
-        if args.ofmt == 'libusbpy':
-            if args.wrapper:
-                print('''
-def open_dev(usbcontext=None):
-    if usbcontext is None:
-        usbcontext = usb1.USBContext()
-    
-    print('Scanning for devices...')
-    for udev in usbcontext.getDeviceList(skip_on_error=True):
-        vid = udev.getVendorID()
-        pid = udev.getProductID()
-        if (vid, pid) == (''' + "0x%04X, 0x%04X" % (vid, pid) + '''):
-            print()
-            print()
-            print('Found device')
-            print('Bus %03i Device %03i: ID %04x:%04x' % (
-                udev.getBusNumber(),
-                udev.getDeviceAddress(),
-                vid,
-                pid))
-            return udev.open()
-    raise Exception("Failed to find a device")
-
-if __name__ == "__main__":
-    import argparse 
-    
-    parser = argparse.ArgumentParser(description='Replay captured USB packets')
-    args = parser.parse_args()
-
-    usbcontext = usb1.USBContext()
-    dev = open_dev(usbcontext)
-    dev.claimInterface(0)
-    dev.resetDevice()
-    replay(dev)
-
-''')
-
-        if args.ofmt == 'json':
-            print(json.dumps(oj, sort_keys=True, indent=4, separators=(',', ': ')))
+        # TODO: find a better way to stream this
+        for v in oj['data']:
+            yield v
 
     def loop_cb_devmax(self, caplen, packet, ts):
         self.g_cur_packet += 1
@@ -746,7 +515,7 @@ if __name__ == "__main__":
             # for some reason usbmon will occasionally give packets out of order
             if not self.urb.id in g_pending:
                 #raise Exception("Packet %s missing submit.  URB ID: 0x%016lX" % (self.pktn_str(), self.urb.id))
-                comment("WARNING: Packet %s missing submit.  URB ID: 0x%016lX" % (self.pktn_str(), self.urb.id))
+                warning("Packet %s missing submit.  URB ID: 0x%016lX" % (self.pktn_str(), self.urb.id))
                 self.pending_complete[self.urb.id] = (self.urb, dat_cur)
             else:
                 self.process_complete(dat_cur)
@@ -792,37 +561,12 @@ if __name__ == "__main__":
         if self.submit is None:
             return
 
-        if args.ofmt in ('LINUX', 'LIBUSB'):
-            print()
         self.packnum()
 
-        if self.previous_urb_complete_kept is not None:
-            '''
-            For bulk packets this can get tricky
-            The intention was mostly for control packets where timing might be more critical
-            '''
-            if args.sleep and args.ofmt == 'libusbpy':
-                prev = self.previous_urb_complete_kept
-                
-                # mind order of operations here...was having round off issues
-                ds = self.submit.m_urb.sec - prev.sec
-                dt = ds + self.submit.m_urb.usec//1.e6 - prev.usec//1.e6
-                if dt < -1.e-6:
-                    # stupid reversed packets
-                    if 0:
-                        print('prev sec: %s' % prev.sec)
-                        print('prev usec: %s' % prev.usec)
-                        print('this sec: %s' % self.submit.m_urb.sec)
-                        print('this usec: %s' % self.submit.m_urb.usec)
-                        raise Exception("bad calc: %s" % dt)
-                elif dt >= 0.001:
-                    print('%stime.sleep(%.3f)' % (indent, dt))
         EREMOTEIO = -121
         if self.urb.status != 0 and not (not args.remoteio and self.urb.status == EREMOTEIO):
-            print('%s# WARNING: complete code %s (%s)' % (indent, self.urb.status,  errno.errorcode.get(-self.urb.status, "unknown")))
+            warning('complete code %s (%s)' % (indent, self.urb.status,  errno.errorcode.get(-self.urb.status, "unknown")))
         
-        self.previous_urb_complete_kept = self.urb
-
         # Find the matching submit request
         if self.urb.transfer_type == URB_CONTROL:
             self.processControlComplete(dat_cur)
@@ -854,7 +598,7 @@ if __name__ == "__main__":
         else:
             dbg("%d: OUT" % (self.g_cur_packet))
             if len(dat_cur) != self.urb.data_length:
-                comment("WARNING: remaining bytes %d != expected payload out bytes %d" % (len(dat_cur), self.urb.data_length))
+                warning("remaining bytes %d != expected payload out bytes %d" % (len(dat_cur), self.urb.data_length))
                 hexdump(dat_cur, "  ")
                 #raise Exception('See above')
             pending.m_data_out = bytes(dat_cur)
@@ -876,10 +620,6 @@ if __name__ == "__main__":
         if self.submit.m_ctrl.wLength:
             data_str = "buff"
             data_size = self.submit.m_ctrl.wLength
-        elif args.ofmt == 'libusbpy':
-            data_str = "\"\""
-        
-        printControlRequest(self.submit, data_str, data_size, "usb_rcvctrlpipe(%s, 0), " % (deviceStr(),) )
         
         # Verify we actually have enough / expected
         # If exact match don't care
@@ -890,18 +630,17 @@ if __name__ == "__main__":
             else:
                 raise Exception('invalid response')
         
-        if args.ofmt == 'json':
-            oj['data'].append({
-                    'type': 'controlRead',
-                    'reqt': self.submit.m_ctrl.bRequestType, 
-                    'req': self.submit.m_ctrl.bRequest,
-                    'val': self.submit.m_ctrl.wValue, 
-                    'ind': self.submit.m_ctrl.wIndex, 
-                    'len': self.submit.m_ctrl.wLength,
-                    'data': bytes2AnonArray(dat_cur),
-                    'packn': self.packnumt(),
-                    })
-        
+        oj['data'].append({
+                'type': 'controlRead',
+                'bRequestType': self.submit.m_ctrl.bRequestType, 
+                'bRequest': self.submit.m_ctrl.bRequest,
+                'wValue': self.submit.m_ctrl.wValue, 
+                'wIndex': self.submit.m_ctrl.wIndex, 
+                'wLength': self.submit.m_ctrl.wLength,
+                'data': bytes2AnonArray(dat_cur),
+                'packn': self.packnumt(),
+                })
+    
         
         if self.submit.m_ctrl.wLength:
             if args.packet_numbers:
@@ -909,13 +648,6 @@ if __name__ == "__main__":
             else:
                 # TODO: consider counting instead of by captured index
                 packet_numbering = "packet"
-            
-    
-            if args.wrapper:
-                if args.ofmt == 'libusbpy':
-                    print("%svalidate_read(%s, buff, \"%s\")" % (indent, bytes2AnonArray(dat_cur, "char"),  packet_numbering ))
-                elif args.ofmt in ('LINUX', 'LIBUSB'):
-                    print("%svalidate_read(%s, %u, buff, n_rw, \"%s\");" % (indent, bytes2AnonArray(dat_cur, "char"), packet_numbering ))
     
     def processControlCompleteOut(self, dat_cur):
         data_size = 0
@@ -928,21 +660,16 @@ if __name__ == "__main__":
             # Note that its the submit from earlier, not the ack that we care about
             data_str = bytes2AnonArray(self.submit.m_data_out)
             data_size = len(self.submit.m_data_out)
-        elif args.ofmt == 'libusbpy':
-            data_str = "\"\""
         
-        printControlRequest(self.submit, data_str, data_size, "usb_sndctrlpipe(%s, 0), " % (deviceStr()) )
-        
-        if args.ofmt == 'json':
-            oj['data'].append({
-                    'type': 'controlWrite',
-                    'reqt': self.submit.m_ctrl.bRequestType, 
-                    'req': self.submit.m_ctrl.bRequest,
-                    'val': self.submit.m_ctrl.wValue, 
-                    'ind': self.submit.m_ctrl.wIndex, 
-                    'data': bytes2AnonArray(self.submit.m_data_out),
-                    'packn': self.packnumt(),
-                    })
+        oj['data'].append({
+                'type': 'controlWrite',
+                'bRequestType': self.submit.m_ctrl.bRequestType, 
+                'bRequest': self.submit.m_ctrl.bRequest,
+                'wValue': self.submit.m_ctrl.wValue, 
+                'wIndex': self.submit.m_ctrl.wIndex, 
+                'data': bytes2AnonArray(self.submit.m_data_out),
+                'packn': self.packnumt(),
+                })
         
     def processControlComplete(self, dat_cur):
         if args.comment:
@@ -1008,7 +735,7 @@ if __name__ == "__main__":
         else:
             dbg("%d: OUT" % (self.g_cur_packet))
             if len(dat_cur) != self.urb.data_length:
-                comment("WARNING: remaining bytes %d != expected payload out bytes %d" % (len(dat_cur), self.urb.data_length))
+                warning("remaining bytes %d != expected payload out bytes %d" % (len(dat_cur), self.urb.data_length))
                 hexdump(dat_cur, "  ")
                 #raise Exception('See above')
             pending.m_data_out = bytes(dat_cur)
@@ -1031,32 +758,18 @@ if __name__ == "__main__":
         if max_payload_sz:
             data_str = "buff"
             data_size = max_payload_sz
-        elif args.ofmt == 'libusbpy':
-            data_str = "\"\""
         
         
         
-        if args.bulk_dir:
-            pass
-        elif args.ofmt == 'libusbpy':
-            # def bulkRead(self, endpoint, length, timeout=0):
-            print("%sbuff = bulkRead(0x%02X, 0x%04X)" % (indent, self.submit.m_urb.endpoint, data_size))
-        elif args.ofmt == 'json':
-            # output below
-            oj['data'].append({
-                    'type': 'bulkRead',
-                    'endp': self.submit.m_urb.endpoint, 
-                    'len': data_size,
-                    'data': bytes2AnonArray(dat_cur),
-                    'packn': self.packnumt(),
-                    })
-        else:
-            '''
-            int LIBUSB_CALL libusb_bulk_transfer(libusb_device_handle *dev_handle,
-                unsigned char endpoint, unsigned char *data, int length,
-                int *actual_length, unsigned int timeout);
-            '''
-            raise Exception('FIXME')
+        # output below
+        oj['data'].append({
+                'type': 'bulkRead',
+                'endp': self.submit.m_urb.endpoint, 
+                'len': data_size,
+                'data': bytes2AnonArray(dat_cur),
+                'packn': self.packnumt(),
+                'packm': self.submit.packet_number,
+                })
         
         # Verify we actually have enough / expected
         # If exact match don't care
@@ -1073,44 +786,17 @@ if __name__ == "__main__":
             else:
                 # TODO: consider counting instead of by captured index
                 packet_numbering = "packet"
-            
-    
-            if args.bulk_dir:
-                fn = os.path.join(args.bulk_dir, 'pkt%06d_bulk_in.bin' % self.pktn_str())
-                print('Saving %s, len %d' % (fn, len(dat_cur)))
-                open(fn, 'w').write(dat_cur)
-            elif args.wrapper:
-                if args.ofmt == 'libusbpy':
-                    print("%svalidate_read(%s, buff, \"%s\")" % (indent, bytes2AnonArray(dat_cur, "char"),  packet_numbering ))
-                elif args.ofmt in ('LINUX', 'LIBUSB'):
-                    print("%svalidate_read(%s, %u, buff, n_rw, \"%s\");" % (indent, bytes2AnonArray(dat_cur, "char"), packet_numbering ))
-        
-    
     
     def processBulkCompleteOut(self, dat_cur):
         data_size = 0
         
-        # print("Data out size: %u vs urb size %u" % (submit.m_data_out_size, self.submit.m_urb.data_length ))
-        if args.ofmt == 'libusbpy': 
-            # Note that its the submit from earlier, not the ack that we care about
-            data_str = bytes2AnonArray(self.submit.m_data_out)
-            # def bulkWrite(self, endpoint, data, timeout=0):
-            print("%sbulkWrite(0x%02X, %s)" % (indent, self.submit.m_urb.endpoint, data_str))
-        elif args.ofmt == 'json':
-            # output below
-            oj['data'].append({
-                    'type': 'bulkWrite',
-                    'endp': self.submit.m_urb.endpoint, 
-                    'data': bytes2AnonArray(self.submit.m_data_out),
-                    'packn': self.packnumt(),
-                    })
-        else:
-            '''
-            int LIBUSB_CALL libusb_bulk_transfer(libusb_device_handle *dev_handle,
-                unsigned char endpoint, unsigned char *data, int length,
-                int *actual_length, unsigned int timeout);
-            '''
-            raise Exception('FIXME')
+        # output below
+        oj['data'].append({
+                'type': 'bulkWrite',
+                'endp': self.submit.m_urb.endpoint, 
+                'data': bytes2AnonArray(self.submit.m_data_out),
+                'packn': self.packnumt(),
+                })
 
     def processBulkComplete(self, dat_cur):
         if self.urb.endpoint & USB_DIR_IN:
@@ -1121,7 +807,5 @@ if __name__ == "__main__":
             self.processBulkCompleteOut(dat_cur)
     
     def processInterruptComplete(self, dat_cur):
-        if args.ofmt in ('LINUX', 'LIBUSB'):
-            print()
-        print('%s# WARNING: omitting interrupt' % (indent,))
+        warning('omitting interrupt')
 

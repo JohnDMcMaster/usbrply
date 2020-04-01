@@ -1,19 +1,20 @@
 import argparse
-from usbrply import usbrply
-from usbrply.usbrply import add_bool_arg
+import usbrply.parsers
+import usbrply.printers
+from usbrply.util import add_bool_arg
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Replay captured USB packets')
     parser.add_argument('--range', '-r', help='inclusive range like 123:456')
-    parser.add_argument('-k', dest='ofmt', default='libusbpy', action='store_const', const='linux', help='output linux kenrel')
-    parser.add_argument('-l', dest='ofmt', action='store_const', const='libusb', help='output libusb')
-    parser.add_argument('-p', dest='ofmt', action='store_const', const='libusbpy', help='output libusb python')
+    parser.add_argument('-k', dest='ofmt', default='libusb-py', action='store_const', const='linux', help='output linux kenrel')
+    parser.add_argument('-l', dest='ofmt', action='store_const', const='libusb-c', help='output libusb')
+    parser.add_argument('-p', dest='ofmt', action='store_const', const='libusb-py', help='output libusb python')
     parser.add_argument('-j', dest='ofmt', action='store_const', const='json', help='output json')
     parser.add_argument('-s', help='allow short')
     parser.add_argument('-f', help='custom call')
     add_bool_arg(parser, '--packet-numbers', default=True, help='print packet numbers') 
-    parser.add_argument('--bulk-dir', help='bulk data .bin dir')
     parser.add_argument('--verbose', '-v', action='store_true', help='verbose')
+    parser.add_argument('--parser', default="lin-pcap", help='Which parser engine to use. Choices: auto, lin-pcap')
     add_bool_arg(parser, '--sleep', default=False, help='Insert sleep statements between packets to keep original timing')
     add_bool_arg(parser, '--comment', default=False, help='General comments')
     add_bool_arg(parser, '--fx2', default=False, help='FX2 comments')
@@ -32,25 +33,21 @@ if __name__ == "__main__":
     parser.add_argument('--pid', default='0')
     parser.add_argument('fin', help='File name in')
     args = parser.parse_args()
-    usbrply.args = args
 
     vid = int(args.vid, 0)
     pid = int(args.pid, 0)
 
     if args.range:
-        (usbrply.g_min_packet, g_max_packet) = args.range.split(':')
-        if len(usbrply.g_min_packet) == 0:
-            usbrply.g_min_packet = 0
+        (g_min_packet, g_max_packet) = args.range.split(':')
+        if len(g_min_packet) == 0:
+            g_min_packet = 0
         else:
-            usbrply.g_min_packet = int(usbrply.g_min_packet, 0)
+            g_min_packet = int(g_min_packet, 0)
         if len(g_max_packet) == 0:
-            usbrply.g_max_packet = float('inf')
+            g_max_packet = float('inf')
         else:
-            usbrply.g_max_packet = int(usbrply.g_max_packet, 0)
+            g_max_packet = int(g_max_packet, 0)
     
-    if args.bulk_dir:
-        args.ofmt = 'bin'
-        os.mkdir(args.bulk_dir)
+    # assert args.parser in ("lin-pcap","win-pcap")
 
-    gen = usbrply.Gen()
-    gen.run()
+    usbrply.printers.run(args, usbrply.parsers.pcap2json(args))
