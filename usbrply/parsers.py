@@ -3,7 +3,7 @@ Aggregates parser engines together
 """
 
 from . import lin_pcap
-# from . import win_pcap
+from . import win_pcap
 
 import json
 import sys
@@ -13,7 +13,7 @@ def pcap_gen(args):
 
     cls = {
         "lin-pcap": lin_pcap.Gen,
-        # "win-pcap": win_pcap.Gen,
+        "win-pcap": win_pcap.Gen,
         }[args.parser]
     gen = cls(args)
 
