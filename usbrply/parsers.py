@@ -16,7 +16,7 @@ def pcap_gen(args):
     parser = args.parser
     if parser is "auto":
         parser = pcap_util.guess_parser(args.fin)
-        print("Guess parser: %s" % parser)
+        # print("Guess parser: %s" % parser)
 
     cls = {
         "lin-pcap": lin_pcap.Gen,
