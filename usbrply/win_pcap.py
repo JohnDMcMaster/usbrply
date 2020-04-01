@@ -592,7 +592,7 @@ class Gen:
             self.urb = usb_urb(packet[0:usb_urb_sz])
             dat_cur = packet[usb_urb_sz:]
     
-            printv('ID %s' % (urb_id_str(self.urb.id),))
+            printv('ID %s, %s post-urb bytes' % (urb_id_str(self.urb.id), len(dat_cur)))
     
             # Main packet filtering
             # Drop if not specified device
@@ -626,19 +626,21 @@ class Gen:
             # Drop if generic device management traffic
             if not args.setup and self.urb.transfer_type == URB_CONTROL:
                 def skip():
-                    # FIXME: broken
-                    # Doesn't seem to be hurting downstream tools, don't worry about for now
-                    return False
-
                     # Was the submit marked for ignore?
                     # For some reason these don't have status packets
                     if self.urb.id in g_pending and g_pending[self.urb.id] is None:
                         return True
-                    # Submit then
-                    # Skip xfer_stage
-                    ctrl = usb_ctrlrequest(dat_cur[1:])
-                    reqst = req2s(ctrl)
-                    return reqst in setup_reqs or reqst == "GET_STATUS" and self.urb.type == URB_SUBMIT
+                    # Keep any other pending packets
+                    if self.urb.id in g_pending:
+                        return False
+                    # If not already submitted, must be a submit then
+                    # but we could have started a capture before submit
+                    if self.urb.irp_info & 1 == INFO_PDO2FDO and self.urb.transfer_type == URB_CONTROL:
+                        # Skip xfer_stage
+                        buf = dat_cur[1:usb_ctrlrequest_sz+1]
+                        ctrl = usb_ctrlrequest(buf)
+                        reqst = req2s(ctrl)
+                        return (reqst in setup_reqs) or (reqst == "GET_STATUS" and (self.urb.endpoint & URB_TRANSFER_IN) == URB_TRANSFER_IN)
 
                 if skip():
                     print('Drop setup packet %s' % self.pktn_str())
