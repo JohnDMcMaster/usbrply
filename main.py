@@ -16,7 +16,7 @@ if __name__ == "__main__":
     parser.add_argument('-f', help='custom call')
     add_bool_arg(parser, '--packet-numbers', default=True, help='print packet numbers') 
     parser.add_argument('--verbose', '-v', action='store_true', help='verbose')
-    parser.add_argument('--parser', default="lin-pcap", help='Which parser engine to use. Choices: auto, lin-pcap')
+    parser.add_argument('--parser', default="auto", help='Which parser engine to use. Choices: auto, lin-pcap, win-pcap')
     add_bool_arg(parser, '--sleep', default=False, help='Insert sleep statements between packets to keep original timing')
     add_bool_arg(parser, '--comment', default=False, help='General comments')
     add_bool_arg(parser, '--fx2', default=False, help='FX2 comments')

@@ -443,7 +443,7 @@ class Gen:
                 print_urb(self.urb)
     
             if urb_error(self.urb):
-                self.erros + 1
+                self.errors + 1
                 if args.halt:
                     print("oh noes!")
                     sys.exit(1)

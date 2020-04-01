@@ -4,6 +4,7 @@ Aggregates parser engines together
 
 from . import lin_pcap
 from . import win_pcap
+from . import pcap_util
 
 import json
 import sys
@@ -11,10 +12,15 @@ import sys
 def pcap_gen(args):
     # TODO: add Windows engine back in
 
+    parser = args.parser
+    if parser is "auto":
+        parser = pcap_util.guess_parser(args.fin)
+        print("Guess parser: %s" % parser)
+
     cls = {
         "lin-pcap": lin_pcap.Gen,
         "win-pcap": win_pcap.Gen,
-        }[args.parser]
+        }[parser]
     gen = cls(args)
 
     for p in gen.run():
