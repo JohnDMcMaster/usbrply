@@ -58,8 +58,65 @@ XFER_STATUS = 2
 USBD_STATUS_SUCCESS = 0
 
 # https://msdn.microsoft.com/en-us/library/windows/hardware/ff540409(v=vs.85).aspx
+# https://github.com/wine-mirror/wine/blob/master/include/ddk/usb.h
 URB_FUNCTION_CONTROL_TRANSFER = 0x08
 URB_FUNCTION_VENDOR_DEVICE = 0x17
+
+func_i2s = {
+        0x0000: "SELECT_CONFIGURATION",
+        0x0001: "SELECT_INTERFACE",
+        0x0002: "ABORT_PIPE",
+        0x0003: "TAKE_FRAME_LENGTH_CONTROL",
+        0x0004: "RELEASE_FRAME_LENGTH_CONTROL",
+        0x0005: "GET_FRAME_LENGTH",
+        0x0006: "SET_FRAME_LENGTH",
+        0x0007: "GET_CURRENT_FRAME_NUMBER",
+        0x0008: "CONTROL_TRANSFER",
+        0x0009: "BULK_OR_INTERRUPT_TRANSFER",
+        0x000A: "ISOCH_TRANSFER",
+        0x000B: "GET_DESCRIPTOR_FROM_DEVICE",
+        0x000C: "SET_DESCRIPTOR_TO_DEVICE",
+        0x000D: "SET_FEATURE_TO_DEVICE",
+        0x000E: "SET_FEATURE_TO_INTERFACE",
+        0x000F: "SET_FEATURE_TO_ENDPOINT",
+        0x0010: "CLEAR_FEATURE_TO_DEVICE",
+        0x0011: "CLEAR_FEATURE_TO_INTERFACE",
+        0x0012: "CLEAR_FEATURE_TO_ENDPOINT",
+        0x0013: "GET_STATUS_FROM_DEVICE",
+        0x0014: "GET_STATUS_FROM_INTERFACE",
+        0x0015: "GET_STATUS_FROM_ENDPOINT",
+        0x0016: "RESERVED_0X0016",
+        0x0017: "VENDOR_DEVICE",
+        0x0018: "VENDOR_INTERFACE",
+        0x0019: "VENDOR_ENDPOINT",
+        0x001A: "CLASS_DEVICE",
+        0x001B: "CLASS_INTERFACE",
+        0x001C: "CLASS_ENDPOINT",
+        0x001D: "RESERVE_0X001D",
+        0x001E: "SYNC_RESET_PIPE_AND_CLEAR_STALL",
+        0x001F: "CLASS_OTHER",
+        0x0020: "VENDOR_OTHER",
+        0x0021: "GET_STATUS_FROM_OTHER",
+        0x0022: "CLEAR_FEATURE_TO_OTHER",
+        0x0023: "SET_FEATURE_TO_OTHER",
+        0x0024: "GET_DESCRIPTOR_FROM_ENDPOINT",
+        0x0025: "SET_DESCRIPTOR_TO_ENDPOINT",
+        0x0026: "GET_CONFIGURATION",
+        0x0027: "GET_INTERFACE",
+        0x0028: "GET_DESCRIPTOR_FROM_INTERFACE",
+        0x0029: "SET_DESCRIPTOR_TO_INTERFACE",
+        0x002A: "GET_MS_FEATURE_DESCRIPTOR",
+        0x002B: "RESERVE_0X002B",
+        0x002C: "RESERVE_0X002C",
+        0x002D: "RESERVE_0X002D",
+        0x002E: "RESERVE_0X002E",
+        0x002F: "RESERVE_0X002F",
+        0x0030: "SYNC_RESET_PIPE",
+        0x0031: "SYNC_CLEAR_STALL",
+        }
+
+def func_str(func):
+    return func_i2s.get(func, "0x%04X" % func)
 
 urb_type2str = {
         URB_SUBMIT: 'URB_SUBMIT',
@@ -132,6 +189,20 @@ usb_ctrlrequest_sz = struct.calcsize(usb_ctrlrequest_fmt)
 def usb_ctrlrequest(s):
     return usb_ctrlrequest_nt(*struct.unpack(usb_ctrlrequest_fmt, str(s)))
 
+# https://stackoverflow.com/questions/19110075/what-is-the-difference-between-pdo-and-fdo-in-windows-device-drivers
+# PDO = Physical Device Object
+# FDO = Functional Device Object
+# Submit
+INFO_FDO2PDO = 0
+# Complete
+INFO_PDO2FDO = 1
+
+def irp_info_str(irp_info):
+    if irp_info & 1:
+        return "PDO2FDO (0x%02X)" % irp_info
+    else:
+        return "FDO2PDO (0x%02X)" % irp_info
+
 '''
 typedef struct {
     uint64_t id
@@ -151,52 +222,13 @@ typedef struct {
     //uint8_t pad[24]
 } __attribute__((packed)) usb_urb_t
 '''
-usb_urb_lin_nt = namedtuple('usb_urb_lin', (
-        'id',
-        'type',
-        'transfer_type',
-        'endpoint',
-        
-        'device',
-        'bus_id',
-        'setup_request',
-        'data',
-        
-        'sec',
-        'usec',
-        'status',
-        
-        # Control: requested data length
-        # Complete: identical to data_length?
-        'length',
-        # How much data is attached to this message
-        'data_length',
-        # Main use is URB setup for control requests, not sure if thats universal?
-        # TODO: check how these are used in bulk requests
-        # If it is the same, they should be merged into this structure
-        'ctrlrequest',))
-usb_urb_lin_fmt = ('<'
-        'Q' # id
-        'B'
-        'B'
-        'B'
-        
-        'B' # device
-        'H'
-        'B'
-        'B'
-        
-        'Q' # sec
-        'I'
-        'i'
-        
-        'I' # length
-        'I'
-        '24s')
 
 '''
 IRP: I/O request packet
 https://msdn.microsoft.com/en-us/library/windows/hardware/ff550694(v=vs.85).aspx
+
+also useful info
+https://www.wireshark.org/docs/dfref/u/usb.html
 '''
 # Header
 # Packet may have additional data
@@ -469,20 +501,17 @@ def request_type2str(bRequestType):
 
 
 def print_urb(urb):
-    print("URB id: 0x%016lX" % (urb.id))
-    print("  type: %s (%c / 0x%02X)" % (urb_type2str[urb.type], urb.type, urb.type))
-    #print("    dir: %s" % ('IN' if urb.type & URB_TRANSFER_IN else 'OUT',))
-    print("  transfer_type: %s (0x%02X)" % (transfer2str_safe(urb.transfer_type), urb.transfer_type ))
-    print("  endpoint: 0x%02X" % (urb.endpoint))
-    print("  device: 0x%02X" % (urb.device))
-    print("  bus_id: 0x%04X" % (urb.bus_id))
-    print("  setup_request: 0x%02X" % (urb.setup_request))
-    print("  data: 0x%02X" % (urb.data))
-    #print("  sec: 0x%016llX" % (urb.sec))
-    print("  usec: 0x%08X" % (urb.usec))
-    print("  status: 0x%08X" % (urb.status))
-    print("  length: 0x%08X" % (urb.length))
-    print("  data_length: 0x%08X" % (urb.data_length))
+    # unique per transaction, not packet
+    print("URB id: %s" % (urb_id_str(urb.id)))
+    print(" pcap_hdr_len: %s" % (urb.pcap_hdr_len,))
+    print(" irp_status: %s" % (urb.irp_status,))
+    print(" usb_func: %s" % (func_str(urb.usb_func),))
+    print(" irp_info: %s" % (irp_info_str(urb.irp_info),))
+    print(" bus_id: %s" % (urb.bus_id,))
+    print(" device: %s" % (urb.device,))
+    print(" endpoint: 0x%02X" % (urb.endpoint,))
+    print(" transfer_type: %s" % (urb.transfer_type,))
+    print(" data_length: %s" % (urb.data_length,))
 
 def hexdump(*args):
     try:
@@ -525,20 +554,23 @@ class Gen:
     def loop_cb(self, caplen, packet, ts):
         try:
             self.g_cur_packet += 1
+            #if self.g_cur_packet >= 871:
+            #    args.verbose = True
+
             if self.g_cur_packet < g_min_packet or self.g_cur_packet > g_max_packet:
                 # print("# Skipping packet %d" % (self.g_cur_packet))
                 return
             if args.verbose:
-                print()
-                print()
-                print()
+                print("")
+                print("")
+                print("")
                 print('PACKET %s' % (self.g_cur_packet,))
 
             if caplen != len(packet):
                 print("packet %s: malformed, caplen %d != len %d", self.pktn_str(), caplen, len(packet))
                 return
             if args.verbose:
-                print('Len: %d' % len(packet))
+                # print('Len: %d' % len(packet))
                 hexdump(packet)
                 #print(ts)
                 print('Pending: %d' % len(g_pending))
@@ -569,10 +601,16 @@ class Gen:
                 return
     
             # FIXME: hack to only process control for now
-            if self.urb.transfer_type != URB_CONTROL:
+            if 0 and self.urb.transfer_type != URB_CONTROL:
                 warning('packet %s: drop packet type %s' % (self.pktn_str(), transfer2str_safe(self.urb.transfer_type)))
                 return
     
+            # FIXME: hack to only process control for now
+            if self.urb.transfer_type == URB_INTERRUPT:
+                # warning('packet %s: drop packet type %s' % (self.pktn_str(), transfer2str_safe(self.urb.transfer_type)))
+                return
+    
+
             # Drop status packets
             if self.urb.transfer_type == URB_CONTROL:
                 # Control transfer stage
@@ -610,9 +648,9 @@ class Gen:
                     return
             self.rel_pkt += 1
             
-            #if args.verbose:
-            #    print("Header size: %lu" % (usb_urb_sz,))
-            #    print_urb(urb)
+            if args.verbose:
+                # print("Header size: %lu" % (usb_urb_sz,))
+                print_urb(self.urb)
     
             if urb_error(self.urb):
                 self.erros + 1
@@ -620,7 +658,8 @@ class Gen:
                     print("oh noes!")
                     sys.exit(1)
             
-            if is_urb_complete(self.urb):
+            # Complete?
+            if self.urb.irp_info & 1 == INFO_PDO2FDO:
                 if args.verbose:
                     print('Pending (%d):' % (len(g_pending),))
                     for k in g_pending:
@@ -632,8 +671,8 @@ class Gen:
                     self.pending_complete[self.urb.id] = (self.urb, dat_cur)
                 else:
                     self.process_complete(dat_cur)
-    
-            elif is_urb_submit(self.urb):
+            # Oterhwise submit
+            else:
                 # Find the matching submit request
                 if self.urb.transfer_type == URB_CONTROL:
                     self.processControlSubmit(dat_cur)
@@ -664,6 +703,7 @@ class Gen:
         self.submit = g_pending[self.urb.id]
         # Done with it, get rid of it
         del g_pending[self.urb.id]
+        printv("Matched submit packet %s" % self.submit.packet_number)
 
         # Discarded?
         if self.submit is None:
@@ -744,11 +784,11 @@ class Gen:
         
         oj['data'].append({
                 'type': 'controlRead',
-                'reqt': self.submit.m_ctrl.bRequestType, 
-                'req': self.submit.m_ctrl.bRequest,
-                'val': self.submit.m_ctrl.wValue, 
-                'ind': self.submit.m_ctrl.wIndex, 
-                'len': self.submit.m_ctrl.wLength,
+                'bRequestType': self.submit.m_ctrl.bRequestType, 
+                'bRequest': self.submit.m_ctrl.bRequest,
+                'wValue': self.submit.m_ctrl.wValue, 
+                'wIndex': self.submit.m_ctrl.wIndex, 
+                'wLength': self.submit.m_ctrl.wLength,
                 'data': bytes2AnonArray(dat_cur),
                 'packn': self.packnumt(),
                 })
@@ -780,10 +820,10 @@ class Gen:
 
         oj['data'].append({
                 'type': 'controlWrite',
-                'reqt': self.submit.m_ctrl.bRequestType, 
-                'req': self.submit.m_ctrl.bRequest,
-                'val': self.submit.m_ctrl.wValue, 
-                'ind': self.submit.m_ctrl.wIndex, 
+                'bRequestType': self.submit.m_ctrl.bRequestType, 
+                'bRequest': self.submit.m_ctrl.bRequest,
+                'wValue': self.submit.m_ctrl.wValue, 
+                'wIndex': self.submit.m_ctrl.wIndex, 
                 'data': bytes2AnonArray(data),
                 'packn': self.packnumt(),
                 })
@@ -801,17 +841,17 @@ class Gen:
         bulk = g_payload_bytes.bulk
         # payload_bytes_type_t *ctrl = &g_payload_bytes.ctrl
         
-        print "Transer statistics"
-        print "    Bulk"
-        print "        In: %u (delta %u), req: %u (delta %u)" % (
+        print("Transer statistics")
+        print("    Bulk")
+        print("        In: %u (delta %u), req: %u (delta %u)" % (
                 bulk.in_, bulk.in_ - bulk.in_last,
                 bulk.req_in, bulk.req_in - bulk.req_in_last
-                )
+                ))
         update_delta( bulk )
-        print "        Out: %u, req: %u" % (g_payload_bytes.bulk.out, g_payload_bytes.bulk.req_out)
-        print "    Control"
-        print "        In: %u, req: %u" % (g_payload_bytes.ctrl.in_, g_payload_bytes.ctrl.req_in)
-        print "        Out: %u, req: %u" % (g_payload_bytes.ctrl.out, g_payload_bytes.ctrl.req_out)
+        print("        Out: %u, req: %u" % (g_payload_bytes.bulk.out, g_payload_bytes.bulk.req_out))
+        print("    Control")
+        print("        In: %u, req: %u" % (g_payload_bytes.ctrl.in_, g_payload_bytes.ctrl.req_in))
+        print("        Out: %u, req: %u" % (g_payload_bytes.ctrl.out, g_payload_bytes.ctrl.req_out))
 
     def packnum(self):
         '''
@@ -830,10 +870,10 @@ class Gen:
             return (None, None)
         
     def processBulkSubmit(self, dat_cur):
-        if self.urb.type & USB_DIR_IN:
-            g_payload_bytes.bulk.req_in += self.urb.length
+        if self.urb.endpoint & URB_TRANSFER_IN:
+            g_payload_bytes.bulk.req_in += self.urb.data_length
         else:
-            g_payload_bytes.bulk.req_out += self.urb.length        
+            g_payload_bytes.bulk.req_out += self.urb.data_length
 
         pending = PendingRX()
         pending.raw = self.urb_raw
@@ -857,23 +897,27 @@ class Gen:
         
         pending.packet_number = self.pktn_str()
         g_pending[self.urb.id] = pending
-        printV('Added pending bulk URB %s' % self.urb.id)
+        printv('Added pending bulk URB %s' % self.urb.id)
 
 
     def processBulkCompleteIn(self, dat_cur):
         packet_numbering = ''
         data_size = 0
         data_str = "None"
-        max_payload_sz = self.submit.m_urb.length
+
+        # looks like maybe windows doesn't report the request size?
+        # think this is always 0
+        assert self.submit.m_urb.data_length == 0
+        
+        # instead, use the recieved buffer size as a best estimated
+        max_payload_sz = len(dat_cur)
         
         # FIXME: this is a messy conversion artfact from the C code
         # Is it legal to have a 0 length bulk in?
         if max_payload_sz:
             data_str = "buff"
             data_size = max_payload_sz
-        
-        
-        
+
         # output below
         oj['data'].append({
                 'type': 'bulkRead',
@@ -883,23 +927,12 @@ class Gen:
                 'packn': self.packnumt(),
                 })
         
-        # Verify we actually have enough / expected
-        # If exact match don't care
-        if len(dat_cur) != max_payload_sz:
-            if len(dat_cur) < max_payload_sz:
-                comment("NOTE:: req max %u but got %u" % (max_payload_sz, len(dat_cur)))
-            else:
-                raise Exception('invalid response')
-        
         if max_payload_sz:
             if args.packet_numbers:
                 packet_numbering = "packet %s/%s" % (self.submit.packet_number, self.pktn_str())
             else:
                 # TODO: consider counting instead of by captured index
                 packet_numbering = "packet"
-            
-    
-        
     
     
     def processBulkCompleteOut(self, dat_cur):
@@ -913,7 +946,7 @@ class Gen:
                 })
 
     def processBulkComplete(self, dat_cur):
-        if self.urb.endpoint & USB_DIR_IN:
+        if self.urb.endpoint & URB_TRANSFER_IN:
             g_payload_bytes.bulk.in_ += self.urb.data_length
             self.processBulkCompleteIn(dat_cur)
         else:
@@ -925,6 +958,30 @@ class Gen:
         pass
 
     
+    def loop_cb_devmax(self, caplen, packet, ts):
+        self.g_cur_packet += 1
+        if self.g_cur_packet < g_min_packet or self.g_cur_packet > g_max_packet:
+            # print("# Skipping packet %d" % (self.g_cur_packet))
+            return
+        
+        if caplen != len(packet):
+            print("packet %s: malformed, caplen %d != len %d", self.pktn_str(), caplen, len(packet))
+            return
+        #if args.verbose:
+        #    print('Len: %d' % len(packet))
+        
+        # dbg("Length %u" % (len(packet),))
+        if len(packet) < usb_urb_sz:
+            hexdump(packet)
+            raise ValueError("Packet size %d is not min size %d" % (len(packet), usb_urb_sz))
+    
+        # caplen is actual length, len is reported
+        self.urb_raw = packet
+        self.urb = usb_urb(packet[0:usb_urb_sz])
+        dat_cur = packet[usb_urb_sz:]
+
+        self.device_keep = max(self.device_keep, self.urb.device)
+
     def run(self):
         global oj
 
@@ -940,6 +997,7 @@ class Gen:
             p.open_offline(args.fin)
             p.loop(-1, self.loop_cb_devmax)
             comment('Selected device %u' % self.device_keep)
+            self.g_cur_packet = 0
 
         comment("Generated by usbrply")
         # comment("Date: %s" % (UVDCurDateTime()))
