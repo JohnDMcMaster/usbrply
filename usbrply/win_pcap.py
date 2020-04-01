@@ -667,7 +667,7 @@ class Gen:
 
     def processControlComplete(self, dat_cur):
         if args.comment:
-            req_comment(self.submit.m_ctrl, self.submit.m_data_out)
+            req_comment(self.submit.m_ctrl, self.submit.m_data_out, comment)
 
         if self.submit.m_ctrl.bRequestType & URB_TRANSFER_IN:
             self.processControlCompleteIn(dat_cur)

@@ -160,7 +160,7 @@ def transfer2str_safe(t):
 
 # FX2 regs: http://www.keil.com/dd/docs/datashts/cypress/fx2_trm.pdf
 # FX2LP regs: http://www.cypress.com/file/126446/download
-def req_comment(ctrl, dat):
+def req_comment(ctrl, dat, comment):
     # Table 9-3. Standard Device Requests
     reqs = req2s(ctrl)
     if not reqs:
