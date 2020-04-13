@@ -1,12 +1,39 @@
-Convert a .pcap file (captured USB packets) to Python or C code that replays the packets in the .pcap file
+# usbrply
 
-Supported targets are:
+Convert a .pcap file (captured USB packets) to Python or C code that replays the captured USB commands.
+
+Supported packet sources are:
+* Linux Wireshark (via usbmon)
+* Windows Wireshark (via USBPcap)
+
+Supported output formats are:
 * libusb Python (primary)
-* libusb C
-* Linux Kernel C
+* (libusb C: fixme)
+* (Linux Kernel C: fixme)
 * JSON
 
+Example applications:
+* Rapidly reverse engineer and re-implement USB protocols
+* Record a proprietary Windows programming sequence and replay on an embedded Linux device
+* Snoop USB-serial packets
+
+Questions? Please reach out on github or join #usbrply on Freenode IRC
+
 Sample workflow for capturing Windows traffic and replaying traffic in Python:
+* Install Wireshark. Make sure you install the USBPcap library
+* Start Wireshark
+* Connect USB device to computer
+* Start catpure
+* Start your application, do your thing, etc to generate packets
+* Close application
+* Stop capture
+* Save capture. Save in pcap-ng format (either should work)
+* Close Wireshark
+* Run: "usbrply --device-hi -p my.pcapng >replay.py"
+* Linux: run "python replay.py"
+* Verify expected device behavior. Did an LED blink? Did you get expected data back?
+
+Sample workflow for capturing Windows VM traffic from Linux host and replaying traffic in Python:
 * Example: program a Xilinx dev board under Linux without knowing anything about the JTAG adapter USB protocol
 * Linux: Install Wireshark
 * Linux: Enable usbmon so Wireshark can capture USB (sudo modprobe usbmon, see http://wiki.wireshark.org/CaptureSetup/USB)
@@ -19,7 +46,7 @@ Sample workflow for capturing Windows traffic and replaying traffic in Python:
 * Windows: start your application, do your thing, etc to generate packets
 * Linux: stop capture
 * Linux: save capture. Save in pcap-ng format (either should work)
-* Linux: run: "usbrply -p my.pcapng >replay.py"
+* Linux: run: "usbrply --device-hi -p my.pcapng >replay.py"
 * Linux: detatch USB device from Windows guest
 * Linux: run "python replay.py"
 * Verify expected device behavior. Did an LED blink? Did you get expected data back?
