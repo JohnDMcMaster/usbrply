@@ -12,6 +12,7 @@ Bulk packets
 '''
 
 from .usb import *
+from .util import hexdump
 
 import pcap
 import argparse
@@ -326,14 +327,6 @@ def print_urb(urb):
     print(" endpoint: 0x%02X" % (urb.endpoint, ))
     print(" transfer_type: %s" % (urb.transfer_type, ))
     print(" data_length: %s" % (urb.data_length, ))
-
-
-def hexdump(*args):
-    try:
-        from uvscada.util import hexdump
-        hexdump(*args)
-    except:
-        comment('hexdump broken')
 
 
 def urb_error(urb):

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from .usb import *
+from .util import hexdump
 
 import pcap
 import sys
@@ -143,14 +144,6 @@ def print_urb(urb):
     print("  status: 0x%08X" % (urb.status))
     print("  length: 0x%08X" % (urb.length))
     print("  data_length: 0x%08X" % (urb.data_length))
-
-
-def hexdump(*args):
-    try:
-        from uvscada.util import hexdump
-        hexdump(*args)
-    except:
-        comment('hexdump broken')
 
 
 '''
