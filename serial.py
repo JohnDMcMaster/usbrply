@@ -102,19 +102,21 @@ class TextSPrinter(object):
         if j['type'] == 'read':
             interface = j['interface']
             data = j['data']
+            n = len(data) / 2
             prefix = j['prefix']
             if args.ascii:
-                indented("%u r %s: %s" % (interface, len(data), binascii.unhexlify(data)))
+                indented("%u r %s: %s" % (interface, n, binascii.unhexlify(data)))
             else:
-                indented("%u r %s: 0x%s" % (interface, len(data), data))
+                indented("%u r %s: 0x%s" % (interface, n, data))
                 indented("  %s" % (binascii.hexlify(prefix,)))
         elif j['type'] == 'write':
             interface = j['interface']
             data = j['data']
+            n = len(data) / 2
             if args.ascii:
-                indented("%u w %s: %s" % (interface, len(data), binascii.unhexlify(data)))
+                indented("%u w %s: %s" % (interface, n, binascii.unhexlify(data)))
             else:
-                indented("%u w %s: 0x%s" % (interface, len(data), data))
+                indented("%u w %s: 0x%s" % (interface, n, data))
         else:
             assert 0
 
