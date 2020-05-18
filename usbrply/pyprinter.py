@@ -1,5 +1,6 @@
 from printer import Printer, indented, indent_inc, indent_dec
 import sys
+import binascii
 
 
 def comment(s):
@@ -182,10 +183,10 @@ if __name__ == "__main__":
                 indented("buff = bulkRead(0x%02X, 0x%04X)" %
                          (d["endp"], d["len"]))
                 indented("validate_read(%s, buff, \"%s\")" %
-                         (bytes2AnonArray(d["data"]), packet_numbering))
+                         (bytes2AnonArray(binascii.unhexlify(d["data"])), packet_numbering))
             elif d["type"] == "bulkWrite":
                 # Note that its the submit from earlier, not the ack that we care about
-                data_str = bytes2AnonArray(d["data"])
+                data_str = bytes2AnonArray(binascii.unhexlify(d["data"]))
                 # def bulkWrite(self, endpoint, data, timeout=0):
                 indented("bulkWrite(0x%02X, %s)" % (d["endp"], data_str))
 
