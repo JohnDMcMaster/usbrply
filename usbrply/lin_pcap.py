@@ -397,7 +397,7 @@ class Gen:
         if self.urb.status != 0 and not (not args.remoteio
                                          and self.urb.status == EREMOTEIO):
             warning('complete code %s (%s)' %
-                    (indent, self.urb.status,
+                    (self.urb.status,
                      errno.errorcode.get(-self.urb.status, "unknown")))
 
         # Find the matching submit request
