@@ -2,6 +2,10 @@
 
 Convert a .pcap file (captured USB packets) to Python or C code that replays the captured USB commands.
 
+To use do one of:
+  * install it using "sudo python setup.py install" and use usbrply in your path
+  * Call main.py directly
+
 Supported packet sources are:
 * Linux Wireshark (via usbmon)
 * Windows Wireshark (via USBPcap)
