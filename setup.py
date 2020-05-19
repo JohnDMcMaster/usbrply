@@ -14,19 +14,19 @@ def read(fname):
 if not os.path.exists('build'):
     os.mkdir('build')
 scripts = (
-    'usbrply.py',
-    #'usbrplyw.py',
+    ('main.py', 'usbrply'),
+    ('serial.py', 'usbrply-serial'),
 )
 scripts_dist = []
-for script in scripts:
+for src_fn, prog_name in scripts:
     # Make script names more executable like
-    dst = 'build/' + script.replace('.py', '').replace('_', '-')
-    shutil.copy(script, dst)
+    dst = 'build/' + prog_name
+    shutil.copy(src_fn, dst)
     scripts_dist.append(dst)
 
 setup(
     name="usbrply",
-    version="0.1.0",
+    version="1.0.0",
     author="John McMaster",
     author_email='JohnDMcMaster@gmail.com',
     description=("Replay captured USB packets from .pcap file."),

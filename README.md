@@ -72,3 +72,11 @@ or convert USB output to higher level API calls.
 An example can be found here: https://github.com/ProgHQ/bpmicro/blob/master/scrape.py
 This example first aggregates USB packets into application specific packets, and then decodes these into API calls
 
+
+# USB serial decoder
+
+usbrply-serial supported adapters:
+  * FT2232C: data rx/tx
+
+TODO: write doc
+
