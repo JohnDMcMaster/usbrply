@@ -115,7 +115,7 @@ if __name__ == "__main__":
         sys.stdout = fout
 
     txtj = parser(args).run(usbrply.parsers.pcap2json(args))
-    
+
     print("")
     print("")
     print("")

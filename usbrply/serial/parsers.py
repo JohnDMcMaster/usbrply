@@ -292,7 +292,7 @@ class FT2232CParser(object):
         self.header()
 
         for di, d in enumerate(j["data"]):
-            if di > 500:
+            if 0 and di > 500:
                 print("debug break")
                 break
             if d["type"] == "bulkWrite":
@@ -309,4 +309,3 @@ class FT2232CParser(object):
             "data": self.jo,
         }
         return j
-

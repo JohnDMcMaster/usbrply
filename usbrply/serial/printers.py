@@ -1,6 +1,7 @@
 import binascii
 from usbrply.printer import Printer, indented, indent_inc, indent_dec
 
+
 class TextFT2232CPrinter(object):
     def __init__(self, args):
         self.ascii = args.ascii
@@ -53,6 +54,7 @@ class TextFT2232CPrinter(object):
             self.next_json(d)
 
         self.footer()
+
 
 class JSONSPrinter(object):
     def run(self, j):
