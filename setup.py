@@ -21,7 +21,10 @@ scripts_dist = []
 for src_fn, prog_name in scripts:
     # Make script names more executable like
     dst = 'build/' + prog_name
-    shutil.copy(src_fn, dst)
+    #shutil.copy(src_fn, dst)
+    if os.path.exists(dst):
+        os.unlink(dst)
+    os.symlink(os.path.realpath(src_fn), dst)
     scripts_dist.append(dst)
 
 setup(
