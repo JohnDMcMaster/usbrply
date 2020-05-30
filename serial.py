@@ -8,7 +8,7 @@ import json
 import os
 
 FTDI_DEVICE_OUT_REQTYPE = 64
-# FTDI_DEVICE_IN_REQTYPE = 
+FTDI_DEVICE_IN_REQTYPE = 192
 
 req_s2i = {
     "RESET": 0,
@@ -42,7 +42,7 @@ def interface_i2str(i):
     assert 0
 
 
-def flags2map(s2i, vali):
+def flags2dict(s2i, vali):
     ret = {}
     for k, v in s2i.items():
         ret[k] = bool(vali & v)
@@ -66,6 +66,54 @@ class FT2232CParser(Printer):
     def footer(self):
         pass
 
+    def handleControlRead(self, d):
+        print(d)
+        if d['bRequestType'] != FTDI_DEVICE_IN_REQTYPE:
+            return
+        request = req_i2s[d['bRequest']]
+        print("bRequest", request)
+        if request == "POLL_MODEM_STATUS":
+            assert d['wLength'] == 2
+            buff = bytearray(binascii.unhexlify(d['data']))
+            assert buff[1] & 0x0F == 0
+            j = {
+                # buff1
+                # Clear to send
+                'CTS': bool(buff[1] & 0x10),
+                # Data set ready
+                'DTS': bool(buff[1] & 0x20),
+                # Ring indicator
+                'RI': bool(buff[1] & 0x40),
+                # Receive line signal detect
+                'RLSD': bool(buff[1] & 0x80),
+                # buff0
+                # Data ready
+                'DR': bool(buff[0] & 0x01),
+                # Overrun error
+                'OE': bool(buff[0] & 0x02),
+                # Parity error
+                'PE': bool(buff[0] & 0x04),
+                # Framing error
+                'FE': bool(buff[0] & 0x08),
+                # Break interrupt
+                'BI': bool(buff[0] & 0x10),
+                # Transmitter holding register
+                'THRE': bool(buff[0] & 0x20),
+                # Transmitter empty
+                'TEMT': bool(buff[0] & 0x40),
+                # Error in RCVR FIFO
+                'ERR': bool(buff[0] & 0x80),
+                }
+        else:
+            j = {}
+            j["type"] = request
+            print("%s: FIXME" % (request,))
+
+        j["type"] = request
+        j['rw'] = 'w'
+        self.next_json(j)
+
+
     def handleControlWrite(self, d):
         print(d)
         if d['bRequestType'] != FTDI_DEVICE_OUT_REQTYPE:
@@ -86,8 +134,8 @@ class FT2232CParser(Printer):
                 "DTR_DSR_HS": DTR_DSR_HS,
                 "XON_XOFF_HS": XON_XOFF_HS,
             }
-            flagmap = flags2map(flag_s2i, d["wIndex"] & 0xFF00)
-            print("i%s SET_FLOW_CTRL: %s" % (interface, flagmap))
+            j = flags2dict(flag_s2i, d["wIndex"] & 0xFF00)
+            j['interface'] = interface
         elif request == "SET_DATA":
             parity = {
                 0: "NONE",
@@ -108,9 +156,66 @@ class FT2232CParser(Printer):
                 1: "ON",
             }[(d['wValue'] >> 14) & 0x1]
 
+            j = {
+                'parity': parity,
+                'stopbits': stopbits,
+                'breakon': breakon,
+                }
+
             interface = interface_i2str(d["wIndex"])
-            print("i%s SET_DATA: parity %s, stop bits %s, break %s" %
-                  (interface, parity, stopbits, breakon))
+            j['interface'] = interface
+        else:
+            j = {}
+            print("%s: FIXME" % (request,))
+
+        j["type"] = request
+        j['rw'] = 'r'
+        self.next_json(j)
+
+
+    def handleBulkWrite(self, d):
+        # print(d)
+        # json encodes in hex
+        # protocol itself encodes in hex
+        # data = binascii.unhexlify(d["data"])
+        # print(len(data))
+
+        interface = {
+            0x02: 0,
+            0x04: 1,
+        }[d["endp"]]
+
+        self.next_json({
+            "type": "write",
+            "interface": interface,
+            "data": d["data"],
+        })
+
+    def handleBulkRead(self, d):
+        assert len(d["data"]) % 2 == 0
+        # json encodes in hex
+        # protocol itself encodes in hex
+        data = binascii.unhexlify(d["data"])
+        # print(d)
+
+        interface = {
+            0x81: 0,
+            0x83: 1,
+        }[d["endp"]]
+
+        prefix = data[0:2]
+        data = data[2:]
+        # meh lots of these and not sure what they mean
+        # should look into these but just ignore for now
+        # assert prefix == "\x42\x60" or prefix == "\x32\x60" or prefix == "\x32\x00", d
+
+        if len(data):
+            self.next_json({
+                "type": "read",
+                "interface": interface,
+                "data": binascii.hexlify(data),
+                "prefix": prefix,
+            })
 
     def run(self, j):
         self.header()
@@ -119,52 +224,16 @@ class FT2232CParser(Printer):
         # Used to optionally generate timing
         prevd = None
 
-        for d in j["data"]:
+        for di, d in enumerate(j["data"]):
+            if di > 50:
+                print("debug break")
+                break
             if d["type"] == "bulkWrite":
-                # print(d)
-                # json encodes in hex
-                # protocol itself encodes in hex
-                # data = binascii.unhexlify(d["data"])
-                # print(len(data))
-
-                interface = {
-                    0x02: 0,
-                    0x04: 1,
-                }[d["endp"]]
-
-                self.next_json({
-                    "type": "write",
-                    "interface": interface,
-                    "data": d["data"],
-                })
+                self.handleBulkWrite(d)
             elif d["type"] == "bulkRead":
-                assert len(d["data"]) % 2 == 0
-                # json encodes in hex
-                # protocol itself encodes in hex
-                data = binascii.unhexlify(d["data"])
-                # print(d)
-
-                interface = {
-                    0x81: 0,
-                    0x83: 1,
-                }[d["endp"]]
-
-                prefix = data[0:2]
-                data = data[2:]
-                # meh lots of these and not sure what they mean
-                # should look into these but just ignore for now
-                # assert prefix == "\x42\x60" or prefix == "\x32\x60" or prefix == "\x32\x00", d
-
-                if len(data):
-                    self.next_json({
-                        "type": "read",
-                        "interface": interface,
-                        "data": binascii.hexlify(data),
-                        "prefix": prefix,
-                    })
+                self.handleBulkRead(d)
             elif d["type"] == "controlRead":
-                print(d)
-                pass
+                self.handleControlRead(d)
             elif d["type"] == "controlWrite":
                 self.handleControlWrite(d)
 
@@ -213,6 +282,13 @@ class TextSPrinter(object):
                          (interface, n, binascii.unhexlify(data)))
             else:
                 indented("%u w %s: 0x%s" % (interface, n, data))
+        elif j['type'] == 'SET_FLOW_CTRL':
+            print("i%s SET_FLOW_CTRL: %s" % (interface, j))
+        elif j['type'] == 'SET_DATA':
+            print("i%s SET_DATA: parity %s, stop bits %s, break %s" %
+                  (j['interface'], j['parity'], j['stopbits'], j['breakon']))
+        elif j['type'] == 'POLL_MODEM_STATUS':
+            print(j)
         else:
             assert 0
 
@@ -226,6 +302,10 @@ class TextSPrinter(object):
         pass
 
     def run(self, j):
+        print("")
+        print("")
+        print("")
+
         self.header()
 
         for d in j["data"]:
@@ -251,7 +331,8 @@ class PythonSPrinter(object):
             interface = j['interface']
             indented("ser%u.write(%s)" % (interface, data_str))
         else:
-            assert 0
+            # assert 0
+            print('# next_json: %s' % (j['type'],))
 
     def comment(self, s):
         indented('# %s' % (s, ))
