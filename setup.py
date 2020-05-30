@@ -1,5 +1,5 @@
 import os
-from setuptools import setup
+from setuptools import setup, find_packages
 import shutil
 
 
@@ -33,6 +33,7 @@ setup(
     license="BSD",
     keywords="libusb pcap",
     url='https://github.com/JohnDMcMaster/usbrply',
+    packages=find_packages(),
     scripts=scripts_dist,
     install_requires=[
         #'pcap',
