@@ -182,8 +182,8 @@ if __name__ == "__main__":
                 data_str = "\"\""
                 indented("buff = bulkRead(0x%02X, 0x%04X)" %
                          (d["endp"], d["len"]))
-                indented("validate_read(%s, buff, \"%s\")" %
-                         (bytes2AnonArray(binascii.unhexlify(d["data"])), packet_numbering))
+                indented("validate_read(%s, buff, \"%s\")" % (bytes2AnonArray(
+                    binascii.unhexlify(d["data"])), packet_numbering))
             elif d["type"] == "bulkWrite":
                 # Note that its the submit from earlier, not the ack that we care about
                 data_str = bytes2AnonArray(binascii.unhexlify(d["data"]))
