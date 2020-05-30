@@ -39,6 +39,12 @@ INTERFACE_D = 4
 def interface_i2str(i):
     if i == INTERFACE_A:
         return "A"
+    elif i == INTERFACE_B:
+        return "B"
+    elif i == INTERFACE_C:
+        return "C"
+    elif i == INTERFACE_D:
+        return "D"
     assert 0
 
 
@@ -103,40 +109,55 @@ class FT2232CParser(Printer):
                 'TEMT': bool(buff[0] & 0x40),
                 # Error in RCVR FIFO
                 'ERR': bool(buff[0] & 0x80),
-                }
+            }
         else:
             j = {}
             j["type"] = request
-            print("%s: FIXME" % (request,))
+            print("%s: FIXME" % (request, ))
 
         j["type"] = request
-        j['rw'] = 'w'
+        j['rw'] = 'r'
+        j['interface'] = interface_i2str(d["wIndex"] & 0xFF)
         self.next_json(j)
 
-
     def handleControlWrite(self, d):
+        """
+        ('bRequest', 'SET_EVENT_CHAR')
+        SET_EVENT_CHAR: FIXME
+        {'wValue': 0, 'data': '', 'bRequest': 7, 'packn': (301, 302), 'type': 'controlWrite', 'bRequestType': 64, 'wIndex': 1}
+        ('bRequest', 'SET_ERROR_CHAR')
+        SET_ERROR_CHAR: FIXME
+        {'wValue': 1, 'data': '', 'bRequest': 9, 'packn': (303, 304), 'type': 'controlWrite', 'bRequestType': 64, 'wIndex': 1}
+        ('bRequest', 'SET_LATENCY_TIMER')
+        SET_LATENCY_TIMER: FIXME
+        {'wValue': 0, 'data': '', 'bRequest': 2, 'packn': (305, 306), 'type': 'controlWrite', 'bRequestType': 64, 'wIndex': 257}
+        ('bRequest', 'SET_FLOW_CTRL')
+        {'wValue': 0, 'data': '', 'bRequest': 11, 'packn': (309, 310), 'type': 'controlWrite', 'bRequestType': 64, 'wIndex': 1}
+        ('bRequest', 'SET_BITMODE')
+        SET_BITMODE: FIXME
+        {'wValue': 512, 'data': '', 'bRequest': 11, 'packn': (311, 312), 'type': 'controlWrite', 'bRequestType': 64, 'wIndex': 1}
+        ('bRequest', 'SET_BITMODE')
+        SET_BITMODE: FIXME
+        {'wValue': 2, 'data': '', 'bRequest': 9, 'packn': (621, 622), 'type': 'controlWrite', 'bRequestType': 64, 'wIndex': 1}
+        ('bRequest', 'SET_LATENCY_TIMER')
+        SET_LATENCY_TIMER: FIXME
+        """
         print(d)
         if d['bRequestType'] != FTDI_DEVICE_OUT_REQTYPE:
             return
         request = req_i2s[d['bRequest']]
         print("bRequest", request)
-        if request == "SET_FLOW_CTRL":
-            assert d["wValue"] == 0
-            interface = interface_i2str(d["wIndex"] & 0xFF)
 
-            DISABLE_FLOW_CTRL = 0x0
-            RTS_CTS_HS = (0x1 << 8)
-            DTR_DSR_HS = (0x2 << 8)
-            XON_XOFF_HS = (0x4 << 8)
+        def SET_FLOW_CTRL(d):
             flag_s2i = {
-                "DISABLE_FLOW_CTRL": DISABLE_FLOW_CTRL,
-                "RTS_CTS_HS": RTS_CTS_HS,
-                "DTR_DSR_HS": DTR_DSR_HS,
-                "XON_XOFF_HS": XON_XOFF_HS,
+                "DISABLE_FLOW_CTRL": 0x0,
+                "RTS_CTS_HS": 0x01,
+                "DTR_DSR_HS": 0x02,
+                "XON_XOFF_HS": 0x04,
             }
-            j = flags2dict(flag_s2i, d["wIndex"] & 0xFF00)
-            j['interface'] = interface
-        elif request == "SET_DATA":
+            return flags2dict(flag_s2i, d["wIndex"] >> 8)
+
+        def SET_DATA(d):
             parity = {
                 0: "NONE",
                 1: "ODD",
@@ -160,18 +181,69 @@ class FT2232CParser(Printer):
                 'parity': parity,
                 'stopbits': stopbits,
                 'breakon': breakon,
-                }
+            }
 
-            interface = interface_i2str(d["wIndex"])
-            j['interface'] = interface
-        else:
+            return j
+
+        def SET_EVENT_CHAR(d):
+            """Set the special event character"""
+            j = {
+                "char": d['wValue'] & 0xFF,
+                "enable": bool(d['wValue'] & 0x100),
+            }
+            return j
+
+        def SET_ERROR_CHAR(d):
+            """Set error character"""
+            j = {
+                "char": d['wValue'] & 0xFF,
+                "enable": bool(d['wValue'] & 0x100),
+            }
+            return j
+
+        def SET_LATENCY_TIMER(d):
+            """keeps data in the internal buffer if the buffer is not full yet"""
+            latency = d['wValue']
+            assert 1 <= latency <= 255
+            j = {
+                'latency': latency,
+            }
+            return j
+
+        def SET_BITMODE(d):
+            flag_s2i = {
+                "RESET": 0x0,
+                "BITBANG": 0x01,
+                "MPSSE": 0x02,
+                "SYNCBB": 0x04,
+                "MCU": 0x08,
+                "OPTO": 0x10,
+                "CBUS": 0x20,
+                "SYNCFF": 0x40,
+                "FT1284": 0x80,
+            }
+            j = flags2dict(flag_s2i, d["wValue"] >> 8)
+            j['bitmask'] = d["wValue"] & 0xFF
+            return j
+
+        def DEFAULT(d):
             j = {}
-            print("%s: FIXME" % (request,))
+            print("%s: FIXME" % (request, ))
+            return j
+
+        j = {
+            "SET_FLOW_CTRL": SET_FLOW_CTRL,
+            "SET_DATA": SET_DATA,
+            "SET_EVENT_CHAR": SET_EVENT_CHAR,
+            "SET_ERROR_CHAR": SET_ERROR_CHAR,
+            "SET_LATENCY_TIMER": SET_LATENCY_TIMER,
+            "SET_BITMODE": SET_BITMODE,
+        }.get(request, DEFAULT)(d)
 
         j["type"] = request
-        j['rw'] = 'r'
+        j['rw'] = 'w'
+        j['interface'] = interface_i2str(d["wIndex"] & 0xFF)
         self.next_json(j)
-
 
     def handleBulkWrite(self, d):
         # print(d)
@@ -225,7 +297,7 @@ class FT2232CParser(Printer):
         prevd = None
 
         for di, d in enumerate(j["data"]):
-            if di > 50:
+            if di > 500:
                 print("debug break")
                 break
             if d["type"] == "bulkWrite":
@@ -282,15 +354,12 @@ class TextSPrinter(object):
                          (interface, n, binascii.unhexlify(data)))
             else:
                 indented("%u w %s: 0x%s" % (interface, n, data))
-        elif j['type'] == 'SET_FLOW_CTRL':
-            print("i%s SET_FLOW_CTRL: %s" % (interface, j))
         elif j['type'] == 'SET_DATA':
-            print("i%s SET_DATA: parity %s, stop bits %s, break %s" %
-                  (j['interface'], j['parity'], j['stopbits'], j['breakon']))
-        elif j['type'] == 'POLL_MODEM_STATUS':
-            print(j)
+            indented(
+                "i%s SET_DATA: parity %s, stop bits %s, break %s" %
+                (j['interface'], j['parity'], j['stopbits'], j['breakon']))
         else:
-            assert 0
+            indented("i%s %s: %s" % (j['interface'], j['type'], j))
 
     def comment(self, s):
         indented('%s' % (s, ))
@@ -332,7 +401,7 @@ class PythonSPrinter(object):
             indented("ser%u.write(%s)" % (interface, data_str))
         else:
             # assert 0
-            print('# next_json: %s' % (j['type'],))
+            print('# next_json: %s' % (j['type'], ))
 
     def comment(self, s):
         indented('# %s' % (s, ))
