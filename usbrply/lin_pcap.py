@@ -282,7 +282,7 @@ class Gen(PcapGen):
         # Drop if is generic device management traffic
         if not self.arg_setup and self.urb.transfer_type == URB_CONTROL:
             ctrl = usb_ctrlrequest(self.urb.ctrlrequest[0:usb_ctrlrequest_sz])
-            reqst = req2s(ctrl, fx2=self.arg_fx2)
+            reqst = req2s(ctrl.bRequestType, ctrl.bRequest)
             if reqst in setup_reqs or reqst == "GET_STATUS" and self.urb.type == URB_SUBMIT:
                 self.pending_complete[self.urb.id] = None
                 self.submit = None
@@ -471,10 +471,6 @@ class Gen(PcapGen):
         })
 
     def processControlComplete(self, dat_cur):
-        if self.arg_comment:
-            req_comment(self.submit.m_ctrl, self.submit.m_data_out,
-                        self.pcomment)
-
         if self.submit.m_ctrl.bRequestType & URB_TRANSFER_IN:
             self.processControlCompleteIn(dat_cur)
         else:

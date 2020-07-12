@@ -3,6 +3,7 @@
 import argparse
 import usbrply.parsers
 import usbrply.printers
+import usbrply.filters
 from usbrply.util import add_bool_arg
 
 
@@ -107,9 +108,12 @@ def main():
     # assert args.parser in ("lin-pcap","win-pcap")
 
     argsj = args.__dict__
-    usbrply.printers.run(args.ofmt,
-                         usbrply.parsers.pcap2json(args.fin, argsj),
-                         argsj=argsj)
+    parsed = usbrply.parsers.pcap2json(args.fin, argsj)
+    filters = []
+    if args.comment:
+        filters.append("fx2")
+    filtered = usbrply.filters.run(filters, parsed, argsj)
+    usbrply.printers.run(args.ofmt, filtered, argsj=argsj)
 
 
 if __name__ == "__main__":

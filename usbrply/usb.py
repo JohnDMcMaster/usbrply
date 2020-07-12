@@ -78,7 +78,7 @@ setup_reqs = [
 ]
 
 
-def req2s(ctrl, fx2=False):
+def req2s(bRequestType, bRequest, vendor=None):
     m = {
         USB_TYPE_STANDARD: {
             USB_REQ_GET_STATUS: "GET_STATUS",
@@ -104,16 +104,14 @@ def req2s(ctrl, fx2=False):
             USB_REQ_SYNCH_FRAME: "SYNCH_FRAME",
         },
     }
-    if fx2:
-        m[USB_TYPE_VENDOR].update({
-            0xA0: "FX2_REG_W",
-        })
+    if vendor:
+        m[USB_TYPE_VENDOR].update(vendor)
 
-    reqType = ctrl.bRequestType & USB_TYPE_MASK
+    reqType = bRequestType & USB_TYPE_MASK
     n = m.get(reqType, None)
-    if n is None or not ctrl.bRequest in n:
+    if n is None or not bRequest in n:
         return None
-    reqs = n[ctrl.bRequest]
+    reqs = n[bRequest]
     return reqs
 
 
@@ -156,57 +154,3 @@ transfer2str = {
 
 def transfer2str_safe(t):
     return transfer2str.get(t, "UNKNOWN_%02x" % t)
-
-
-# FX2 regs: http://www.keil.com/dd/docs/datashts/cypress/fx2_trm.pdf
-# FX2LP regs: http://www.cypress.com/file/126446/download
-def req_comment(ctrl, dat, comment):
-    # Table 9-3. Standard Device Requests
-    reqs = req2s(ctrl)
-    if not reqs:
-        return
-    ret = '%s (0x%02X)' % (reqs, ctrl.bRequest)
-    if reqs == 'SET_ADDRESS':
-        ret += ': 0x%02x/%d' % (ctrl.wValue, ctrl.wValue)
-    elif reqs == 'SET_FEATURE' or reqs == 'CLEAR_FEATURE':
-        ret += ': 0x%02X (%s)' % (ctrl.wValue,
-                                  feat_i2s.get(ctrl.wValue, 'unknown'))
-    elif reqs == 'FX2_REG_W':
-        addr = ctrl.wValue
-        reg2s = {
-            0xE600: 'CPUCS',
-        }
-        reg = reg2s.get(addr, None)
-
-        # 5.4 FX2 Memory Maps
-        # Appendix C
-        # FX2 Register Summary
-        ret += ': addr=0x%04X' % (ctrl.wValue)
-        if reg:
-            ret += ' (%s)' % (reg, )
-        elif addr < 0x1000:
-            ret += ' (FW load)'
-        # FX2: 8K of on-chip RAM (the "Main RAM") at addresses 0x0000-0x1FFF
-        # FX2LP: 16K
-        elif 0x0000 <= addr <= 0x3FFF:
-            ret += ' (main RAM addr=0x%04X)' % addr
-        # 512 bytes of on-chip RAM (the "Scratch RAM") at addresses 0xE000-0xE1FFF
-        elif 0xE000 <= addr <= 0xE1FF:
-            ret += ' (scratch RAM)'
-        # The CPU communicates with the SIE using a set of registers occupying on-chip RAM addresses 0xE600-0xE6FF"
-        elif 0xE600 <= addr <= 0xE6FF:
-            ret += ' (unknown reg)'
-        # per memory map: 7.5KB of USB regs and 4K EP buffers
-        elif 0xE200 <= addr <= 0xFFFF:
-            ret += ' (unknown misc)'
-        else:
-            ret += ' (unknown)'
-
-        if len(dat) == 1:
-            dat = ord(dat)
-            if reg == 'CPUCS':
-                if dat & 1 == 1:
-                    ret += ', reset: hold'
-                else:
-                    ret += ', reset: release'
-    comment(ret)

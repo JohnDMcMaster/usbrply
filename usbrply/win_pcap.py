@@ -426,7 +426,7 @@ class Gen(PcapGen):
                         # Skip xfer_stage
                         buf = dat_cur[1:usb_ctrlrequest_sz + 1]
                         ctrl = usb_ctrlrequest(buf)
-                        reqst = req2s(ctrl, fx2=self.arg_fx2)
+                        reqst = req2s(ctrl.bRequestType, ctrl.bRequest)
                         return (reqst in setup_reqs) or (
                             reqst == "GET_STATUS" and
                             (self.urb.endpoint
@@ -622,10 +622,6 @@ class Gen(PcapGen):
         })
 
     def processControlComplete(self, dat_cur):
-        if self.arg_comment:
-            req_comment(self.submit.m_ctrl, self.submit.m_data_out,
-                        self.pcomment)
-
         if self.submit.m_ctrl.bRequestType & URB_TRANSFER_IN:
             self.processControlCompleteIn(dat_cur)
         else:
