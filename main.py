@@ -54,7 +54,6 @@ def main():
                  default=False,
                  help='Use defines instead of raw numbers')
     add_bool_arg(parser, '--halt', default=True, help='Halt on errors')
-    add_bool_arg(parser, '--cc', default=False, help='Custom call output')
     parser.add_argument('--device',
                         type=int,
                         default=None,
