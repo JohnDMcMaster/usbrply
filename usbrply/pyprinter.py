@@ -1,6 +1,6 @@
 from __future__ import print_function
 from usbrply import printer
-from printer import Printer, indented, indent_inc, indent_dec
+from .printer import Printer, indented, indent_inc, indent_dec
 import sys
 import binascii
 from . import usb

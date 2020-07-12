@@ -1,5 +1,5 @@
-from printer import JSONPrinter
-from pyprinter import LibusbPyPrinter
+from .printer import JSONPrinter
+from .pyprinter import LibusbPyPrinter
 
 
 def run(ofmt, j, argsj={}):

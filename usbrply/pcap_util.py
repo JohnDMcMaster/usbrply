@@ -75,7 +75,7 @@ class PcapParser(object):
         if self.use_pcapng:
             while True:
                 try:
-                    block = self.scanner_iter.next()
+                    block = next(self.scanner_iter)
                 except StopIteration:
                     return False
 
@@ -115,12 +115,23 @@ def guess_parser(fn):
         if guess_windows(packet):
             windows[0] += 1
 
-    load_pcap(fn, loop_cb_guess, lim=3)
+    parser = PcapParser(fn)
+    i = 0
+    while parser.next(loop_cb_guess):
+        i += 1
+        if i >= 3:
+            break
 
     if windows[0]:
         assert linux[0] == 0
-        return "win-pcap"
+        if parser.use_pcapng:
+            return "win-pcapng"
+        else:
+            return "win-pcap"
     if linux[0]:
         assert windows[0] == 0
-        return "lin-pcap"
+        if parser.use_pcapng:
+            return "lin-pcapng"
+        else:
+            return "lin-pcap"
     assert 0, "failed to identify packet format"
