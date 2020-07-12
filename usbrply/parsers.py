@@ -4,7 +4,6 @@ Aggregates parser engines together
 
 from . import lin_pcap
 from . import win_pcap
-from . import lin_pcapng
 from . import pcap_util
 
 import json
