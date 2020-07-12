@@ -4,6 +4,7 @@ Aggregates parser engines together
 
 from . import lin_pcap
 from . import win_pcap
+from . import lin_pcapng
 from . import pcap_util
 
 import json
@@ -21,10 +22,13 @@ def pcap2json(fn, argsj={}):
     if parser == "auto":
         parser = pcap_util.guess_parser(fn)
         # print("Guess parser: %s" % parser)
+        argsj["parser"] = parser
 
     cls = {
         "lin-pcap": lin_pcap.Gen,
+        "lin-pcapng": lin_pcap.Gen,
         "win-pcap": win_pcap.Gen,
+        "win-pcapng": win_pcap.Gen,
     }[parser]
     gen = cls(fn, argsj)
 

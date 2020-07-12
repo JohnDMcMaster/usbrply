@@ -4,7 +4,6 @@ from .usb import *
 from .util import hexdump
 from .com_pcap import PcapGen
 
-import pcap
 import sys
 import binascii
 import struct

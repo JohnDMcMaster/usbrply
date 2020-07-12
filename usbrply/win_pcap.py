@@ -15,16 +15,10 @@ from .usb import *
 from .util import hexdump
 from .com_pcap import PcapGen
 
-import pcap
-import argparse
 import sys
 import binascii
 import struct
 from collections import namedtuple
-import os
-import errno
-import json
-from lib2to3.fixes.fix_metaclass import FixMetaclass
 
 # Windows transfer stages
 # Usb function: URB_FUNCTION_VENDOR_DEVICE (0x17)
