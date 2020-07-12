@@ -86,18 +86,15 @@ def main():
                  '--wrapper',
                  default=False,
                  help='Emit code to make it a full executable program')
-    parser.add_argument('--vid', default='0')
-    parser.add_argument('--pid', default='0')
+    #parser.add_argument('--vid', default='0')
+    #parser.add_argument('--pid', default='0')
     parser.add_argument('fin', help='File name in')
     args = parser.parse_args()
 
     argsj = args.__dict__
 
-    vid = int(args.vid, 0)
-    pid = int(args.pid, 0)
-
-    argsj['vid'] = vid
-    argsj['pid'] = pid
+    #argsj['vid'] = int(args.vid, 0)
+    #argsj['pid'] = int(args.pid, 0)
 
     if args.range:
         (min_packet, max_packet) = args.range.split(':')
