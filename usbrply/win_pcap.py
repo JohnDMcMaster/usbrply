@@ -13,6 +13,7 @@ Bulk packets
 
 from .usb import *
 from .util import hexdump
+from .com_pcap import PcapGen
 
 import pcap
 import argparse
@@ -24,11 +25,6 @@ import os
 import errno
 import json
 from lib2to3.fixes.fix_metaclass import FixMetaclass
-
-verbose = False
-
-g_min_packet = 0
-g_max_packet = float('inf')
 
 # Windows transfer stages
 # Usb function: URB_FUNCTION_VENDOR_DEVICE (0x17)
@@ -222,24 +218,9 @@ usb_urb_fmt = usb_urb_win_fmt
 
 usb_urb_sz = struct.calcsize(usb_urb_fmt)
 
-jbuff = None
-
 
 def usb_urb(s):
     return usb_urb_nt(*struct.unpack(usb_urb_fmt, str(s)))
-
-
-def dbg(s):
-    if verbose:
-        print(s)
-
-
-def comment(s):
-    jbuff.append({'type': 'comment', 'v': s})
-
-
-def warning(s):
-    comment('WARNING: %s' % s)
 
 
 # When we get an IN request we may process packets in between
@@ -331,41 +312,25 @@ def is_urb_complete(urb):
     return urb.usb_func == URB_FUNCTION_CONTROL_TRANSFER
 
 
-def printv(s):
-    if verbose:
-        print(s)
-
-
 def urb_id_str(urb_id):
     # return binascii.hexlify(urb_id)
     return '0x%X' % urb_id
 
 
-class Gen:
+class Gen(PcapGen):
     def __init__(self, fn, argsj={}):
-        global verbose
-
-        verbose = argsj.get("verbose", False)
-        self.verbose = verbose
+        PcapGen.__init__(self, argsj)
 
         self.arg_fin = fn
-        # XXX: don't think this is actually used, verify
-        self.arg_fx2 = argsj.get("fx2", False)
-        self.arg_device = argsj.get("device", None)
-        self.arg_device_hi = argsj.get("device_hi", True)
-        self.arg_setup = argsj.get("setup", False)
-        self.arg_halt = argsj.get("halt", True)
-        self.arg_remoteio = argsj.get("remoteio", False)
-        self.arg_rel_pkt = argsj.get("rel_pkt", False)
-        self.arg_print_short = argsj.get("print_short", False)
-        self.arg_comment = argsj.get("comment", False)
-        self.arg_packet_numbers = argsj.get("packet_numbers", True)
-
         self.cur_packn = 0
         self.rel_pkt = 0
+
         self.previous_urb_complete_kept = None
         self.pending_complete = {}
         self.errors = 0
+
+    def comment_source(self):
+        self.gcomment('Source: Windows pcap (USBPcap)')
 
     def loop_cb(self, caplen, packet, ts):
         try:
@@ -373,7 +338,7 @@ class Gen:
             #if self.cur_packn >= 871:
             #    self.verbose = True
 
-            if self.cur_packn < g_min_packet or self.cur_packn > g_max_packet:
+            if self.cur_packn < self.min_packet or self.cur_packn > self.max_packet:
                 # print("# Skipping packet %d" % (self.cur_packn))
                 return
             if self.verbose:
@@ -392,7 +357,7 @@ class Gen:
                 #print(ts)
                 print('Pending: %d' % len(self.pending_complete))
 
-            dbg("Length %u" % (len(packet), ))
+            self.printv("Length %u" % (len(packet), ))
             if len(packet) < usb_urb_sz:
                 msg = "Packet %s: size %d is not min size %d" % (
                     self.pktn_str(), len(packet), usb_urb_sz)
@@ -410,8 +375,8 @@ class Gen:
             self.urb = usb_urb(packet[0:usb_urb_sz])
             dat_cur = packet[usb_urb_sz:]
 
-            printv('ID %s, %s post-urb bytes' %
-                   (urb_id_str(self.urb.id), len(dat_cur)))
+            self.printv('ID %s, %s post-urb bytes' %
+                        (urb_id_str(self.urb.id), len(dat_cur)))
 
             # Main packet filtering
             # Drop if not specified device
@@ -421,14 +386,14 @@ class Gen:
 
             # FIXME: hack to only process control for now
             if 0 and self.urb.transfer_type != URB_CONTROL:
-                warning('packet %s: drop packet type %s' %
-                        (self.pktn_str(),
-                         transfer2str_safe(self.urb.transfer_type)))
+                self.gwarning('packet %s: drop packet type %s' %
+                              (self.pktn_str(),
+                               transfer2str_safe(self.urb.transfer_type)))
                 return
 
             # FIXME: hack to only process control for now
             if self.urb.transfer_type == URB_INTERRUPT:
-                # warning('packet %s: drop packet type %s' % (self.pktn_str(), transfer2str_safe(self.urb.transfer_type)))
+                # self.gwarning('packet %s: drop packet type %s' % (self.pktn_str(), transfer2str_safe(self.urb.transfer_type)))
                 return
 
             # Drop status packets
@@ -440,7 +405,7 @@ class Gen:
                 xfer_stage = ord(dat_cur[0])
                 #print('xfer_stage: %d' % xfer_stage)
                 if xfer_stage == XFER_STATUS:
-                    printv('drop xfer_status')
+                    self.printv('drop xfer_status')
                     return
 
             # Drop if generic device management traffic
@@ -493,13 +458,9 @@ class Gen:
                         print('  %s' % (urb_id_str(k), ))
                 # for some reason usbmon will occasionally give packets out of order
                 if not self.urb.id in self.pending_complete:
-                    #raise Exception("Packet %s missing submit.  URB ID: 0x%016lX" % (self.pktn_str(), self.urb.id))
-                    comment(
-                        "WARNING: Packet %s missing submit.  URB ID: 0x%016lX"
-                        % (self.pktn_str(), self.urb.id))
-                    # https://github.com/JohnDMcMaster/usbrply/issues/12
-                    # TODO: more proper cleanup
-                    # self.pending_complete[self.urb.id] = (self.urb, dat_cur)
+                    self.gwarning(
+                        "Packet %s missing submit.  URB ID: 0x%016lX" %
+                        (self.pktn_str(), self.urb.id))
                 else:
                     self.process_complete(dat_cur)
             # Oterhwise submit
@@ -515,7 +476,7 @@ class Gen:
                     pending.m_urb = self.urb
                     pending.packet_number = self.pktn_str()
                     self.pending_complete[self.urb.id] = pending
-                    printv('Added pending bulk URB %s' % self.urb.id)
+                    self.printv('Added pending bulk URB %s' % self.urb.id)
 
             self.submit = None
             self.urb = None
@@ -530,11 +491,11 @@ class Gen:
             return self.cur_packn
 
     def process_complete(self, dat_cur):
-        printv("process_complete")
+        self.printv("process_complete")
         self.submit = self.pending_complete[self.urb.id]
         # Done with it, get rid of it
         del self.pending_complete[self.urb.id]
-        printv("Matched submit packet %s" % self.submit.packet_number)
+        self.printv("Matched submit packet %s" % self.submit.packet_number)
 
         # Discarded?
         if self.submit is None:
@@ -563,8 +524,8 @@ class Gen:
         pending.raw = self.urb_raw
         pending.m_urb = self.urb
 
-        printv('Remaining data: %d' % (len(dat_cur)))
-        #printv('ctrlrequest: %d' % (len(self.urb.ctrlrequest)))
+        self.printv('Remaining data: %d' % (len(dat_cur)))
+        #self.printv('ctrlrequest: %d' % (len(self.urb.ctrlrequest)))
         # Skip xfer_stage
         dat_cur = dat_cur[1:]
         ctrl = usb_ctrlrequest(dat_cur[0:usb_ctrlrequest_sz])
@@ -581,16 +542,16 @@ class Gen:
             print("    wLength: 0x%04X" % (ctrl.wLength))
 
         if (ctrl.bRequestType & URB_TRANSFER_IN) == URB_TRANSFER_IN:
-            dbg("%d: IN" % (self.cur_packn))
+            self.printv("%d: IN" % (self.cur_packn))
         else:
-            dbg("%d: OUT" % (self.cur_packn))
+            self.printv("%d: OUT" % (self.cur_packn))
             pending.m_data_out = str(dat_cur)
 
         pending.m_ctrl = ctrl
         pending.packet_number = self.pktn_str()
         self.pending_complete[self.urb.id] = pending
-        printv('Added pending control URB %s, len %d' %
-               (urb_id_str(self.urb.id), len(self.pending_complete)))
+        self.printv('Added pending control URB %s, len %d' %
+                    (urb_id_str(self.urb.id), len(self.pending_complete)))
 
     def processControlCompleteIn(self, dat_cur):
         packet_numbering = ''
@@ -611,8 +572,8 @@ class Gen:
         # If exact match don't care
         if len(dat_cur) != max_payload_sz:
             if len(dat_cur) < max_payload_sz:
-                comment("NOTE:: req max %u but got %u" %
-                        (max_payload_sz, len(dat_cur)))
+                self.gcomment("NOTE:: req max %u but got %u" %
+                              (max_payload_sz, len(dat_cur)))
             else:
                 raise Exception('invalid response')
 
@@ -661,7 +622,8 @@ class Gen:
 
     def processControlComplete(self, dat_cur):
         if self.arg_comment:
-            req_comment(self.submit.m_ctrl, self.submit.m_data_out, comment)
+            req_comment(self.submit.m_ctrl, self.submit.m_data_out,
+                        self.pcomment)
 
         if self.submit.m_ctrl.bRequestType & URB_TRANSFER_IN:
             self.processControlCompleteIn(dat_cur)
@@ -692,10 +654,10 @@ class Gen:
         so that I could diff and then easier back annotate with packet numbers
         '''
         if self.arg_packet_numbers:
-            comment("Generated from packet %s/%s" %
-                    (self.submit.packet_number, self.pktn_str()))
+            self.gcomment("Generated from packet %s/%s" %
+                          (self.submit.packet_number, self.pktn_str()))
         else:
-            comment("Generated from packet %s/%s" % (None, None))
+            self.gcomment("Generated from packet %s/%s" % (None, None))
 
     def packnumt(self):
         if self.arg_packet_numbers:
@@ -717,7 +679,7 @@ class Gen:
             'urb': urbj_complete,
             # 't': urbj_complete["t"],
         }
-        jbuff.append(j)
+        self.jbuff.append(j)
 
     def processBulkSubmit(self, dat_cur):
         if self.urb.endpoint & URB_TRANSFER_IN:
@@ -729,16 +691,16 @@ class Gen:
         pending.raw = self.urb_raw
         pending.m_urb = self.urb
 
-        printv('Remaining data: %d' % (len(dat_cur)))
+        self.printv('Remaining data: %d' % (len(dat_cur)))
 
-        # printv("Packet %d bulk submit (control info size %lu)" % (self.pktn_str(), 666))
+        # self.printv("Packet %d bulk submit (control info size %lu)" % (self.pktn_str(), 666))
 
         if self.urb.endpoint & URB_TRANSFER_IN:
-            dbg("%d: IN" % (self.cur_packn))
+            self.printv("%d: IN" % (self.cur_packn))
         else:
-            dbg("%d: OUT" % (self.cur_packn))
+            self.printv("%d: OUT" % (self.cur_packn))
             if len(dat_cur) != self.urb.data_length:
-                comment(
+                self.gcomment(
                     "WARNING: remaining bytes %d != expected payload out bytes %d"
                     % (len(dat_cur), self.urb.data_length))
                 hexdump(dat_cur, "  ")
@@ -747,7 +709,7 @@ class Gen:
 
         pending.packet_number = self.pktn_str()
         self.pending_complete[self.urb.id] = pending
-        printv('Added pending bulk URB %s' % self.urb.id)
+        self.printv('Added pending bulk URB %s' % self.urb.id)
 
     def processBulkCompleteIn(self, dat_cur):
         packet_numbering = ''
@@ -806,7 +768,7 @@ class Gen:
 
     def loop_cb_devmax(self, caplen, packet, ts):
         self.cur_packn += 1
-        if self.cur_packn < g_min_packet or self.cur_packn > g_max_packet:
+        if self.cur_packn < self.min_packet or self.cur_packn > self.max_packet:
             # print("# Skipping packet %d" % (self.cur_packn))
             return
 
@@ -828,58 +790,4 @@ class Gen:
         self.urb = usb_urb(packet[0:usb_urb_sz])
         dat_cur = packet[usb_urb_sz:]
 
-        self.device_keep = max(self.device_keep, self.urb.device)
-
-    def gen_data(self):
-        global jbuff
-
-        p = pcap.pcapObject()
-        p.open_offline(self.arg_fin)
-        while True:
-            lastn = self.cur_packn
-            # return code isn't given to indicate end
-            p.loop(1, self.loop_cb)
-            if lastn == self.cur_packn:
-                break
-
-            # Pop packets
-            for data in jbuff:
-                yield data
-            jbuff = []
-
-        if len(self.pending_complete) != 0:
-            warning("%lu pending complete requests" %
-                    (len(self.pending_complete)))
-        # if len(self.pending_submit) != 0:
-        #    warning("%lu pending submit requests" % (len(self.pending_submit)))
-
-        # Pop packets
-        for p in jbuff:
-            yield p
-        jbuff = []
-
-    def run(self):
-        global jbuff
-
-        yield 'parser', "win-pcap"
-        yield "fn", self.arg_fin
-        yield 'args', sys.argv
-        yield 'packet_min', g_min_packet
-        yield 'packet_max', g_max_packet
-
-        jbuff = []
-
-        comment("Generated by usbrply")
-        comment('Source: Windows pcap (USBPcap)')
-        comment("cmd: %s" % (' '.join(sys.argv), ))
-
-        if self.arg_device_hi:
-            self.device_keep = -1
-            p = pcap.pcapObject()
-            p.open_offline(self.arg_fin)
-            p.loop(-1, self.loop_cb_devmax)
-            comment('Selected device %u' % self.device_keep)
-            self.cur_packn = 0
-
-        dbg("parsing from range %s to %s" % (g_min_packet, g_max_packet))
-        yield "data", self.gen_data()
+        self.arg_device = max(self.arg_device, self.urb.device)
