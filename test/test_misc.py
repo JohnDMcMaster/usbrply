@@ -5,6 +5,7 @@ import usbrply.printers
 import unittest
 import os
 from usbrply import printer
+from usbrply import parsers
 
 devnull = open("/dev/null", "w")
 
@@ -20,11 +21,11 @@ class TestCase(unittest.TestCase):
 
     def test_parse_win_pcap(self):
         """Windows .pcap parse test"""
-        usbrply.parsers.pcap2json("test/data/win1.pcapng")
+        parsers.jgen2j(usbrply.parsers.pcap2json("test/data/win1.pcapng"))
 
     def test_parse_lin_pcap(self):
         """Linux .pcap parse test"""
-        usbrply.parsers.pcap2json("test/data/lin1.pcapng")
+        parsers.jgen2j(usbrply.parsers.pcap2json("test/data/lin1.pcapng"))
 
     def test_print_json(self):
         usbrply.printers.run(

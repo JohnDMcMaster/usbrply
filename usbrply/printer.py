@@ -1,6 +1,7 @@
 from __future__ import print_function
 import json
 import sys
+from . import parsers
 
 indent = ""
 
@@ -36,10 +37,7 @@ class JSONPrinter(Printer):
         Printer.__init__(self, argsj)
 
     def run(self, jgen):
-        # Convert generator into static JSON
-        j = {}
-        for k, v in jgen:
-            j[k] = v
+        j = parsers.jgen2j(jgen)
 
         json.dump(j,
                   print_file,
