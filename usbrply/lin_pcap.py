@@ -543,6 +543,7 @@ class Gen:
             'wLength': self.submit.m_ctrl.wLength,
             'data': bytes2AnonArray(dat_cur),
             'packn': self.packnumt(),
+            'packm': self.submit.packet_number,
             'urb_submit': urb2json(self.submit.m_urb),
             'urb_complete': urb2json(self.urb),
         })
@@ -575,6 +576,7 @@ class Gen:
             'wIndex': self.submit.m_ctrl.wIndex,
             'data': bytes2AnonArray(self.submit.m_data_out),
             'packn': self.packnumt(),
+            'packm': self.submit.packet_number,
             'urb_submit': urb2json(self.submit.m_urb),
             'urb_complete': urb2json(self.urb),
         })
