@@ -142,6 +142,14 @@ def print_urb(urb):
     print("  data_length: 0x%08X" % (urb.data_length))
 
 
+def urb2json(urb):
+    j = dict(urb.__dict__)
+    j["ctrlrequest"] = binascii.hexlify(j["ctrlrequest"])
+    # j["data"] = binascii.hexlify(j["data"])
+    j["t"] = j['sec'] + j['usec'] / 1e6
+    return j
+
+
 '''
 typedef struct {
     uint64_t id
@@ -535,6 +543,8 @@ class Gen:
             'wLength': self.submit.m_ctrl.wLength,
             'data': bytes2AnonArray(dat_cur),
             'packn': self.packnumt(),
+            'urb_submit': urb2json(self.submit.m_urb),
+            'urb_complete': urb2json(self.urb),
         })
 
         if self.submit.m_ctrl.wLength:
@@ -565,6 +575,8 @@ class Gen:
             'wIndex': self.submit.m_ctrl.wIndex,
             'data': bytes2AnonArray(self.submit.m_data_out),
             'packn': self.packnumt(),
+            'urb_submit': urb2json(self.submit.m_urb),
+            'urb_complete': urb2json(self.urb),
         })
 
     def processControlComplete(self, dat_cur):
@@ -664,6 +676,8 @@ class Gen:
             'data': bytes2AnonArray(dat_cur),
             'packn': self.packnumt(),
             'packm': self.submit.packet_number,
+            'urb_submit': urb2json(self.submit.m_urb),
+            'urb_complete': urb2json(self.urb),
         })
 
         # Verify we actually have enough / expected
@@ -691,6 +705,9 @@ class Gen:
             'endp': self.submit.m_urb.endpoint,
             'data': bytes2AnonArray(self.submit.m_data_out),
             'packn': self.packnumt(),
+            'packm': self.submit.packet_number,
+            'urb_submit': urb2json(self.submit.m_urb),
+            'urb_complete': urb2json(self.urb),
         })
 
     def processBulkComplete(self, dat_cur):
