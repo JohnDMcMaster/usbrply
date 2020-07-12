@@ -1,17 +1,5 @@
 import sys
-
-# High performance C pcap librar
-# Python 2 only, no longer maintained
-try:
-    import pcap
-except ImportError:
-    pcap = None
-
-# Slow but reliable pure Python
-try:
-    import pcapng
-except ImportError:
-    pcapng = None
+from .pcap_util import PcapParser, load_pcap
 
 
 class PcapGen(object):
@@ -35,11 +23,8 @@ class PcapGen(object):
         self.arg_comment = argsj.get("comment", False)
         self.arg_packet_numbers = argsj.get("packet_numbers", True)
 
-        self.pcapng = "pcapng" in argsj["parser"]
-        if self.pcapng:
-            assert pcapng, "pcapng library requested but no pcapng library"
-        else:
-            assert pcap, "pcap library requested but no pcap library"
+        # Either auto selected or user selected by now
+        self.use_pcapng = "pcapng" in argsj["parser"]
 
     def gcomment(self, s):
         """Add global comment, not attached to a packet"""
@@ -78,9 +63,9 @@ class PcapGen(object):
             return (None, None)
 
     def gen_data(self):
-        self.load_pcap_begin()
+        parser = PcapParser(self.arg_fin, use_pcapng=self.use_pcapng)
         while True:
-            if not self.load_pcap_next(self.loop_cb):
+            if not parser.next(self.loop_cb):
                 break
 
             # Pop packets
@@ -94,46 +79,13 @@ class PcapGen(object):
         # if len(self.pending_submit) != 0:
         #    self.gwarning("%lu pending submit requests" % (len(self.pending_submit)))
 
-        # Pop packets
+        # Pop epilogue packets
         for p in self.jbuff:
             yield p
         self.jbuff = []
 
     def platform(self):
         assert 0, "required"
-
-    def load_pcap(self, loop_cb):
-        self.load_pcap_begin()
-        while self.load_pcap_next(loop_cb):
-            pass
-
-    def load_pcap_begin(self):
-        if self.pcapng:
-            self.fp = open(self.arg_fin, 'rb')
-            self.scanner = pcapng.FileScanner(self.fp)
-            self.scanner_iter = self.scanner.__iter__()
-        else:
-            self.pcap = pcap.pcapObject()
-            self.pcap.open_offline(self.arg_fin)
-
-    def load_pcap_next(self, loop_cb):
-        """return True if there was data and might be more, False if nothing was processed"""
-        if self.pcapng:
-            while True:
-                try:
-                    block = self.scanner_iter.next()
-                except StopIteration:
-                    return False
-
-                if not isinstance(block, pcapng.blocks.EnhancedPacket):
-                    continue
-                loop_cb(block.captured_len, block.packet_data, block.timestamp)
-                return True
-        else:
-            lastn = self.cur_packn
-            # return code isn't given to indicate end
-            self.pcap.loop(1, loop_cb)
-            return lastn != self.cur_packn
 
     def run(self):
         yield 'parser', "lin-pcap"
@@ -151,7 +103,9 @@ class PcapGen(object):
 
         if self.arg_device_hi:
             self.arg_device = -1
-            self.load_pcap(self.loop_cb_devmax)
+            load_pcap(self.arg_fin,
+                      self.loop_cb_devmax,
+                      use_pcapng=self.use_pcapng)
             self.gcomment('Selected device %u' % self.arg_device)
             self.cur_packn = 0
 

@@ -2,6 +2,19 @@
 
 from .usb import *
 
+# High performance C pcap librar
+# Python 2 only, no longer maintained
+try:
+    import pcap
+except ImportError:
+    pcap = None
+
+# Slow but reliable pure Python
+try:
+    import pcapng
+except ImportError:
+    pcapng = None
+
 import pcap
 import sys
 """
@@ -34,6 +47,64 @@ def guess_windows(buff):
     return sum(buff[0x0A:0x0E]) == 0
 
 
+class PcapParser(object):
+    def __init__(self, fn, use_pcapng=None):
+        self.fn = fn
+
+        # Select library
+        self.use_pcapng = use_pcapng
+        if self.use_pcapng is None:
+            # User higher performance library if available
+            self.use_pcapng = False if pcap else True
+        # self.pcapng = "pcapng" in argsj["parser"]
+        if self.use_pcapng:
+            assert pcapng, "pcapng library requested but no pcapng library"
+        else:
+            assert pcap, "pcap library requested but no pcap library"
+
+        # Initialize library
+        if self.use_pcapng:
+            self.fp = open(fn, 'rb')
+            self.scanner = pcapng.FileScanner(self.fp)
+            self.scanner_iter = self.scanner.__iter__()
+        else:
+            self.pcap = pcap.pcapObject()
+            self.pcap.open_offline(fn)
+
+    def next(self, loop_cb):
+        """return True if there was data and might be more, False if nothing was processed"""
+        if self.use_pcapng:
+            while True:
+                try:
+                    block = self.scanner_iter.next()
+                except StopIteration:
+                    return False
+
+                if not isinstance(block, pcapng.blocks.EnhancedPacket):
+                    continue
+                loop_cb(block.captured_len, block.packet_data, block.timestamp)
+                return True
+        else:
+            got = [False]
+
+            # return code isn't given to indicate end
+            def my_loop_cb(*args, **kwargs):
+                got[0] = True
+                loop_cb(*args, **kwargs)
+
+            self.pcap.loop(1, my_loop_cb)
+            return got[0]
+
+
+def load_pcap(fn, loop_cb, lim=float('inf'), use_pcapng=None):
+    parser = PcapParser(fn, use_pcapng=use_pcapng)
+    i = 0
+    while parser.next(loop_cb):
+        i += 1
+        if i >= lim:
+            break
+
+
 def guess_parser(fn):
     windows = [0]
     linux = [0]
@@ -45,9 +116,7 @@ def guess_parser(fn):
         if guess_windows(packet):
             windows[0] += 1
 
-    p = pcap.pcapObject()
-    p.open_offline(fn)
-    p.loop(3, loop_cb_guess)
+    load_pcap(fn, loop_cb_guess, lim=3)
 
     if windows[0]:
         assert linux[0] == 0
