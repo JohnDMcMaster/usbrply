@@ -122,7 +122,7 @@ def print_urb(urb):
 
 
 def urb2json(urb):
-    j = dict(urb.__dict__)
+    j = dict(urb._asdict())
     j["ctrlrequest"] = binascii.hexlify(j["ctrlrequest"])
     # j["data"] = binascii.hexlify(j["data"])
     j["t"] = j['sec'] + j['usec'] / 1e6
