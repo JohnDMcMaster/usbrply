@@ -29,7 +29,7 @@ for src_fn, prog_name in scripts:
 
 setup(
     name="usbrply",
-    version="2.0.0",
+    version="2.0.1",
     author="John McMaster",
     author_email='JohnDMcMaster@gmail.com',
     description=("Replay captured USB packets from .pcap file."),
