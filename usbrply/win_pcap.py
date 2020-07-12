@@ -491,7 +491,9 @@ class Gen:
                     comment(
                         "WARNING: Packet %s missing submit.  URB ID: 0x%016lX"
                         % (self.pktn_str(), self.urb.id))
-                    self.pending_complete[self.urb.id] = (self.urb, dat_cur)
+                    # https://github.com/JohnDMcMaster/usbrply/issues/12
+                    # TODO: more proper cleanup
+                    # self.pending_complete[self.urb.id] = (self.urb, dat_cur)
                 else:
                     self.process_complete(dat_cur)
             # Oterhwise submit
