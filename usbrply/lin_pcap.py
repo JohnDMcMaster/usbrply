@@ -619,13 +619,17 @@ class Gen:
             return (None, None)
 
     def output_packet(self, j):
+        urbj_submit = urb2json(self.submit.m_urb)
+        urbj_complete = urb2json(self.urb)
         j["submit"] = {
             "packn": self.submit.packet_number,
-            'urb': urb2json(self.submit.m_urb),
+            'urb': urbj_submit,
+            't': urbj_submit["t"],
         }
         j["complete"] = {
             'packn': self.packnumt(),
-            'urb': urb2json(self.urb),
+            'urb': urbj_complete,
+            't': urbj_complete["t"],
         }
         jbuff.append(j)
 

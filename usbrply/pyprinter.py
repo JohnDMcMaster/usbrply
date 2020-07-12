@@ -144,23 +144,13 @@ if __name__ == "__main__":
 
         for d in j["data"]:
             # print(d)
-            """
-            FIXME: think need to add timing info to JSON?
-            if self.sleep and prevd:
-                # mind order of operations here...was having round off issues
-                ds = self.submit.m_urb.sec - prev.sec
-                dt = ds + self.submit.m_urb.usec//1.e6 - prev.usec//1.e6
-                if dt < -1.e-6:
-                    # stupid reversed packets
-                    if 0:
-                        print('prev sec: %s' % prev.sec)
-                        print('prev usec: %s' % prev.usec)
-                        print('this sec: %s' % self.submit.m_urb.sec)
-                        print('this usec: %s' % self.submit.m_urb.usec)
-                        raise Exception("bad calc: %s" % dt)
-                elif dt >= 0.001:
-                    indented('time.sleep(%.3f)' % (dt,))
-            """
+            if self.sleep and prevd and d["type"] != "comment":
+                try:
+                    dt = d["submit"]["t"] - prevd["submit"]["t"]
+                except KeyError:
+                    raise ValueError("Input JSON does not support timestamps")
+                if dt >= 0.001:
+                    indented('time.sleep(%.3f)' % (dt, ))
 
             packet_numbering = ''
 
@@ -204,6 +194,7 @@ if __name__ == "__main__":
             # these aren't event added to JSON right now
             # print('%s# WARNING: omitting interrupt' % (indent,))
 
-            prevd = d
+            if d["type"] != "comment":
+                prevd = d
 
         self.footer()
