@@ -379,7 +379,7 @@ class Gen:
             # After processing check if it should trigger additional processing
             if self.urb.id in self.pending_submit:
                 # oh snap solved a temporal anomaly
-                commet(
+                comment(
                     "Packet %s: received 0x%016lX submit after complete (probably recycled URB)"
                     % (self.g_cur_packet, self.urb.id))
                 # Add but will be immediately popped
