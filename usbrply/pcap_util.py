@@ -15,7 +15,6 @@ try:
 except ImportError:
     pcapng = None
 
-import pcap
 import sys
 """
 Quick hack to detect packet format

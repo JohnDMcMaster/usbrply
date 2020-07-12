@@ -6,9 +6,6 @@ from . import lin_pcap
 from . import win_pcap
 from . import pcap_util
 
-import json
-import sys
-
 
 def pcap2json(fn, argsj={}):
     """
