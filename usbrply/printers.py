@@ -2,7 +2,7 @@ from printer import JSONPrinter
 from pyprinter import LibusbPyPrinter
 
 
-def run(args, j):
+def run(ofmt, argsj, j):
     pass
 
     cls = {
@@ -10,7 +10,7 @@ def run(args, j):
         # "libusb-c": LibusbCPrinter,
         "libusb-py": LibusbPyPrinter,
         # "linux": LinuxPrinter,
-    }[args.ofmt]
+    }[ofmt]
 
-    printer = cls(args)
+    printer = cls(argsj)
     printer.run(j)

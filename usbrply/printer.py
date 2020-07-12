@@ -20,16 +20,16 @@ def indented(s):
 
 
 class Printer(object):
-    def __init__(self, args):
-        self.args = args
+    def __init__(self, argsj):
+        self.argsj = argsj
 
     def run(self, j):
         raise Exception("Required")
 
 
 class JSONPrinter(Printer):
-    def __init__(self, args):
-        Printer.__init__(self, args)
+    def __init__(self, argsj):
+        Printer.__init__(self, argsj)
 
     def run(self, j):
         print(json.dumps(j, sort_keys=True, indent=4, separators=(',', ': ')))

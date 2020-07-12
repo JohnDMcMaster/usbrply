@@ -5,7 +5,8 @@ import usbrply.parsers
 import usbrply.printers
 from usbrply.util import add_bool_arg
 
-if __name__ == "__main__":
+
+def main():
     parser = argparse.ArgumentParser(description='Replay captured USB packets')
     parser.add_argument('--range', '-r', help='inclusive range like 123:456')
     parser.add_argument('-k',
@@ -57,9 +58,10 @@ if __name__ == "__main__":
                         type=int,
                         default=None,
                         help='Only keep packets for given device')
-    parser.add_argument('--device-hi',
-                        action='store_true',
-                        help='Auto detect to highest device number')
+    add_bool_arg(parser,
+                 '--device-hi',
+                 default=True,
+                 help='Auto detect to highest device number')
     add_bool_arg(parser,
                  '--rel-pkt',
                  default=False,
@@ -104,4 +106,10 @@ if __name__ == "__main__":
 
     # assert args.parser in ("lin-pcap","win-pcap")
 
-    usbrply.printers.run(args, usbrply.parsers.pcap2json(args))
+    argsj = args.__dict__
+    usbrply.printers.run(args.ofmt, argsj,
+                         usbrply.parsers.pcap2json(args.fin, argsj))
+
+
+if __name__ == "__main__":
+    main()
