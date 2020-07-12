@@ -1,4 +1,4 @@
-from .fx2 import FX2Commenter
+from .commenter import Commenter
 
 
 def run(filts, jgen, argsj={}):
@@ -11,6 +11,6 @@ def run(filts, jgen, argsj={}):
 
     filt0 = filts[0]
     cls = {
-        "fx2": FX2Commenter,
+        "commenter": Commenter,
     }[filt0]
     return run(filts[1:], cls(argsj).run(jgen), argsj=argsj)

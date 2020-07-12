@@ -110,8 +110,8 @@ def main():
     argsj = args.__dict__
     parsed = usbrply.parsers.pcap2json(args.fin, argsj)
     filters = []
-    if args.comment:
-        filters.append("fx2")
+    if args.comment or args.fx2:
+        filters.append("commenter")
     filtered = usbrply.filters.run(filters, parsed, argsj)
     usbrply.printers.run(args.ofmt, filtered, argsj=argsj)
 

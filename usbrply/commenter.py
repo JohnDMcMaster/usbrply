@@ -2,7 +2,7 @@ from .usb import req2s, feat_i2s
 import binascii
 
 
-class FX2Commenter(object):
+class Commenter(object):
     def __init__(self, argsj):
         self.fx2 = argsj.get("fx2", False)
 
