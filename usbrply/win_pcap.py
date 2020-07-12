@@ -310,6 +310,12 @@ def print_urb(urb):
     print(" transfer_type: %s" % (urb.transfer_type, ))
     print(" data_length: %s" % (urb.data_length, ))
 
+def urb2json(urb):
+    j = dict(urb.__dict__)
+    #j["ctrlrequest"] = binascii.hexlify(j["ctrlrequest"])
+    # j["data"] = binascii.hexlify(j["data"])
+    #j["t"] = j['sec'] + j['usec'] / 1e6
+    return j
 
 def urb_error(urb):
     return urb.irp_status != USBD_STATUS_SUCCESS
@@ -617,6 +623,9 @@ class Gen:
             'wLength': self.submit.m_ctrl.wLength,
             'data': bytes2AnonArray(dat_cur),
             'packn': self.packnumt(),
+            'packm': self.submit.packet_number,
+            'urb_submit': urb2json(self.submit.m_urb),
+            'urb_complete': urb2json(self.urb),
         })
 
         if self.submit.m_ctrl.wLength:
@@ -651,6 +660,9 @@ class Gen:
             'wIndex': self.submit.m_ctrl.wIndex,
             'data': bytes2AnonArray(data),
             'packn': self.packnumt(),
+            'packm': self.submit.packet_number,
+            'urb_submit': urb2json(self.submit.m_urb),
+            'urb_complete': urb2json(self.urb),
         })
 
     def processControlComplete(self, dat_cur):
@@ -752,6 +764,9 @@ class Gen:
             'len': data_size,
             'data': bytes2AnonArray(dat_cur),
             'packn': self.packnumt(),
+            'packm': self.submit.packet_number,
+            'urb_submit': urb2json(self.submit.m_urb),
+            'urb_complete': urb2json(self.urb),
         })
 
         if max_payload_sz:
@@ -770,6 +785,9 @@ class Gen:
             'endp': self.submit.m_urb.endpoint,
             'data': bytes2AnonArray(self.submit.m_data_out),
             'packn': self.packnumt(),
+            'packm': self.submit.packet_number,
+            'urb_submit': urb2json(self.submit.m_urb),
+            'urb_complete': urb2json(self.urb),
         })
 
     def processBulkComplete(self, dat_cur):
