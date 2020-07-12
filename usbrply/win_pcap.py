@@ -114,7 +114,8 @@ usb_ctrlrequest_sz = struct.calcsize(usb_ctrlrequest_fmt)
 
 
 def usb_ctrlrequest(s):
-    return usb_ctrlrequest_nt(*struct.unpack(usb_ctrlrequest_fmt, str(s)))
+    return usb_ctrlrequest_nt(
+        *struct.unpack(usb_ctrlrequest_fmt, bytearray(s)))
 
 
 # https://stackoverflow.com/questions/19110075/what-is-the-difference-between-pdo-and-fdo-in-windows-device-drivers
@@ -214,7 +215,7 @@ usb_urb_sz = struct.calcsize(usb_urb_fmt)
 
 
 def usb_urb(s):
-    return usb_urb_nt(*struct.unpack(usb_urb_fmt, str(s)))
+    return usb_urb_nt(*struct.unpack(usb_urb_fmt, bytes(s)))
 
 
 # When we get an IN request we may process packets in between
@@ -331,6 +332,7 @@ class Gen(PcapGen):
 
     def loop_cb(self, caplen, packet, ts):
         try:
+            packet = bytearray(packet)
             self.cur_packn += 1
             #if self.cur_packn >= 871:
             #    self.verbose = True
@@ -399,7 +401,7 @@ class Gen(PcapGen):
                 # 1: data
                 # 2: status
                 # 'xfer_stage',
-                xfer_stage = ord(dat_cur[0])
+                xfer_stage = dat_cur[0]
                 #print('xfer_stage: %d' % xfer_stage)
                 if xfer_stage == XFER_STATUS:
                     self.printv('drop xfer_status')
@@ -513,7 +515,7 @@ class Gen(PcapGen):
             self.printv("%d: IN" % (self.cur_packn))
         else:
             self.printv("%d: OUT" % (self.cur_packn))
-            pending.m_data_out = str(dat_cur)
+            pending.m_data_out = bytearray(dat_cur)
 
         pending.m_ctrl = ctrl
         pending.packet_number = self.pktn_str()
@@ -637,7 +639,7 @@ class Gen(PcapGen):
                     % (len(dat_cur), self.urb.data_length))
                 hexdump(dat_cur, "  ")
                 raise Exception('See above')
-            pending.m_data_out = str(dat_cur)
+            pending.m_data_out = bytearray(dat_cur)
 
         pending.packet_number = self.pktn_str()
         self.pending_complete[self.urb.id] = pending

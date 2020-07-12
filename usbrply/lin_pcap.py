@@ -249,6 +249,7 @@ class Gen(PcapGen):
         self.arg_device = max(self.arg_device, self.urb.device)
 
     def loop_cb(self, caplen, packet, ts):
+        packet = bytearray(packet)
         self.cur_packn += 1
         if self.cur_packn < self.min_packet or self.cur_packn > self.max_packet:
             # print("# Skipping packet %d" % (self.cur_packn))
