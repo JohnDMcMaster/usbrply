@@ -32,9 +32,7 @@ class PcapGen(object):
 
     def pcomment(self, s):
         """Add packet comment. Will be attached to the next packet"""
-        # self.pcomments.append(s)
-        # FIXME: sort through p vs g
-        self.gcomment(s)
+        self.pcomments.append(s)
 
     def pwarning(self, s):
         self.pcomment("WARNING: " + str(s))
@@ -42,6 +40,24 @@ class PcapGen(object):
     def printv(self, s):
         if self.verbose:
             print(s)
+
+    def packnum(self):
+        '''
+        Originally I didn't print anything but found that it was better to keep the line numbers the same
+        so that I could diff and then easier back annotate with packet numbers
+        '''
+        if self.arg_packet_numbers:
+            self.pcomment("Generated from packet %s/%s" %
+                          (self.submit.packet_number, self.pktn_str()))
+        else:
+            #self.pcomment("Generated from packet %s/%s" % (None, None))
+            pass
+
+    def packnumt(self):
+        if self.arg_packet_numbers:
+            return (self.submit.packet_number, self.pktn_str())
+        else:
+            return (None, None)
 
     def gen_data(self):
         p = pcap.pcapObject()

@@ -165,6 +165,10 @@ if __name__ == "__main__":
                 # TODO: consider counting instead of by captured index
                 packet_numbering = "packet"
 
+            if "comments" in d:
+                for c in d["comments"]:
+                    comment(c)
+
             if d["type"] == "controlRead":
                 # Is it legal to have a 0 length control in?
                 indented(

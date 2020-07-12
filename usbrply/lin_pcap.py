@@ -480,42 +480,6 @@ class Gen(PcapGen):
         else:
             self.processControlCompleteOut(dat_cur)
 
-    def print_stat(self):
-        bulk = g_payload_bytes.bulk
-        # payload_bytes_type_t *ctrl = &g_payload_bytes.ctrl
-
-        print("Transer statistics")
-        print("    Bulk")
-        print("        In: %u (delta %u), req: %u (delta %u)" %
-              (bulk.in_, bulk.in_ - bulk.in_last, bulk.req_in,
-               bulk.req_in - bulk.req_in_last))
-        update_delta(bulk)
-        print("        Out: %u, req: %u" %
-              (g_payload_bytes.bulk.out, g_payload_bytes.bulk.req_out))
-        print("    Control")
-        print("        In: %u, req: %u" %
-              (g_payload_bytes.ctrl.in_, g_payload_bytes.ctrl.req_in))
-        print("        Out: %u, req: %u" %
-              (g_payload_bytes.ctrl.out, g_payload_bytes.ctrl.req_out))
-
-    def packnum(self):
-        '''
-        Originally I didn't print anything but found that it was better to keep the line numbers the same
-        so that I could diff and then easier back annotate with packet numbers
-        '''
-        if self.arg_packet_numbers:
-            self.pcomment("Generated from packet %s/%s" %
-                          (self.submit.packet_number, self.pktn_str()))
-        else:
-            #self.pcomment("Generated from packet %s/%s" % (None, None))
-            pass
-
-    def packnumt(self):
-        if self.arg_packet_numbers:
-            return (self.submit.packet_number, self.pktn_str())
-        else:
-            return (None, None)
-
     def output_packet(self, j):
         urbj_submit = urb2json(self.submit.m_urb)
         urbj_complete = urb2json(self.urb)
