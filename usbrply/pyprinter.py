@@ -70,7 +70,7 @@ def validate_read(expected, actual, msg):
 
 ''',
                   file=printer.print_file)
-        print('def replay(dev):')
+        print('def replay(dev):', file=printer.print_file)
         indent_inc()
         print('''\
     def bulkRead(endpoint, length, timeout=None):
@@ -169,11 +169,8 @@ if __name__ == "__main__":
                 continue
 
             if self.packet_numbers:
-                if "packm" in d:
-                    packet_numbering = "packet %s/%s" % (d["packn"],
-                                                         d["packm"])
-                else:
-                    packet_numbering = "packet %s/?" % (d["packn"], )
+                packet_numbering = "packet %s/%s" % (d["submit"]["packn"],
+                                                     d["complete"]["packn"])
             else:
                 # TODO: consider counting instead of by captured index
                 packet_numbering = "packet"

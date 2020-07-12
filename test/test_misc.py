@@ -27,13 +27,24 @@ class TestCase(unittest.TestCase):
         """Linux .pcap parse test"""
         parsers.jgen2j(usbrply.parsers.pcap2json("test/data/lin1.pcapng"))
 
+    def test1(self):
+        return
+        j = parsers.jgen2j(usbrply.parsers.pcap2json("test/data/win1.pcapng"))
+        for d in j["data"]:
+            if d["type"] == "controlRead":
+                print(d)
+
     def test_print_json(self):
         usbrply.printers.run(
             "json", usbrply.parsers.pcap2json("test/data/lin1.pcapng"))
 
-    def test_print_pyprinter(self):
+    def test_print_pyprinter_lin(self):
         usbrply.printers.run(
             "libusb-py", usbrply.parsers.pcap2json("test/data/lin1.pcapng"))
+
+    def test_print_pyprinter_win(self):
+        usbrply.printers.run(
+            "libusb-py", usbrply.parsers.pcap2json("test/data/win1.pcapng"))
 
 
 if __name__ == "__main__":

@@ -534,18 +534,14 @@ class Gen:
             else:
                 raise Exception('invalid response')
 
-        jbuff.append({
+        self.output_packet({
             'type': 'controlRead',
             'bRequestType': self.submit.m_ctrl.bRequestType,
             'bRequest': self.submit.m_ctrl.bRequest,
             'wValue': self.submit.m_ctrl.wValue,
             'wIndex': self.submit.m_ctrl.wIndex,
             'wLength': self.submit.m_ctrl.wLength,
-            'data': bytes2AnonArray(dat_cur),
-            'packn': self.submit.packet_number,
-            'packm': self.packnumt(),
-            'urb_submit': urb2json(self.submit.m_urb),
-            'urb_complete': urb2json(self.urb),
+            'data': bytes2AnonArray(dat_cur)
         })
 
         if self.submit.m_ctrl.wLength:
@@ -568,17 +564,13 @@ class Gen:
             data_str = bytes2AnonArray(self.submit.m_data_out)
             data_size = len(self.submit.m_data_out)
 
-        jbuff.append({
+        self.output_packet({
             'type': 'controlWrite',
             'bRequestType': self.submit.m_ctrl.bRequestType,
             'bRequest': self.submit.m_ctrl.bRequest,
             'wValue': self.submit.m_ctrl.wValue,
             'wIndex': self.submit.m_ctrl.wIndex,
-            'data': bytes2AnonArray(self.submit.m_data_out),
-            'packn': self.submit.packet_number,
-            'packm': self.packnumt(),
-            'urb_submit': urb2json(self.submit.m_urb),
-            'urb_complete': urb2json(self.urb),
+            'data': bytes2AnonArray(self.submit.m_data_out)
         })
 
     def processControlComplete(self, dat_cur):
@@ -626,6 +618,17 @@ class Gen:
         else:
             return (None, None)
 
+    def output_packet(self, j):
+        j["submit"] = {
+            "packn": self.submit.packet_number,
+            'urb': urb2json(self.submit.m_urb),
+        }
+        j["complete"] = {
+            'packn': self.packnumt(),
+            'urb': urb2json(self.urb),
+        }
+        jbuff.append(j)
+
     def processBulkSubmit(self, dat_cur):
         if self.urb.type & USB_DIR_IN:
             g_payload_bytes.bulk.req_in += self.urb.length
@@ -670,16 +673,11 @@ class Gen:
             data_str = "buff"
             data_size = max_payload_sz
 
-        # output below
-        jbuff.append({
+        self.output_packet({
             'type': 'bulkRead',
             'endp': self.submit.m_urb.endpoint,
             'len': data_size,
-            'data': bytes2AnonArray(dat_cur),
-            'packn': self.submit.packet_number,
-            'packm': self.packnumt(),
-            'urb_submit': urb2json(self.submit.m_urb),
-            'urb_complete': urb2json(self.urb),
+            'data': bytes2AnonArray(dat_cur)
         })
 
         # Verify we actually have enough / expected
@@ -702,14 +700,10 @@ class Gen:
 
     def processBulkCompleteOut(self, dat_cur):
         # output below
-        jbuff.append({
+        self.output_packet({
             'type': 'bulkWrite',
             'endp': self.submit.m_urb.endpoint,
-            'data': bytes2AnonArray(self.submit.m_data_out),
-            'packn': self.submit.packet_number,
-            'packm': self.packnumt(),
-            'urb_submit': urb2json(self.submit.m_urb),
-            'urb_complete': urb2json(self.urb),
+            'data': bytes2AnonArray(self.submit.m_data_out)
         })
 
     def processBulkComplete(self, dat_cur):
