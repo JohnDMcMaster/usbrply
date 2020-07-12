@@ -1,3 +1,5 @@
+from __future__ import print_function
+from usbrply import printer
 from printer import Printer, indented, indent_inc, indent_dec
 import sys
 import binascii
@@ -66,7 +68,7 @@ def validate_read(expected, actual, msg):
         print('  Actual:   %s' % binascii.hexlify(actual,))
         #raise Exception('failed validate: %s' % msg)
 
-''')
+''', file=printer.print_file)
         print('def replay(dev):')
         indent_inc()
         print('''\
@@ -85,7 +87,7 @@ def validate_read(expected, actual, msg):
                      timeout=None):
         dev.controlWrite(request_type, request, value, index, data,
                      timeout=(1000 if timeout is None else timeout))
-''')
+''', file=printer.print_file)
 
     def footer(self):
         if not self.wrapper:
@@ -123,7 +125,7 @@ if __name__ == "__main__":
     dev.resetDevice()
     replay(dev)
 
-''')
+''', file=printer.print_file)
 
     def run(self, j):
         self.header()

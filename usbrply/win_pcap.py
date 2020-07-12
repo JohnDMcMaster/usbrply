@@ -817,6 +817,8 @@ class Gen:
             'args': sys.argv,
         }
 
+        comment('Source: Windows pcap (USBPcap)')
+
         if self.arg_device_hi:
             self.device_keep = -1
             p = pcap.pcapObject()

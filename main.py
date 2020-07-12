@@ -107,8 +107,9 @@ def main():
     # assert args.parser in ("lin-pcap","win-pcap")
 
     argsj = args.__dict__
-    usbrply.printers.run(args.ofmt, argsj,
-                         usbrply.parsers.pcap2json(args.fin, argsj))
+    usbrply.printers.run(args.ofmt,
+                         usbrply.parsers.pcap2json(args.fin, argsj),
+                         argsj=argsj)
 
 
 if __name__ == "__main__":

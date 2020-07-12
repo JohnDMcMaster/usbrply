@@ -1,7 +1,10 @@
+from __future__ import print_function
 import json
+import sys
 
 indent = ""
 
+print_file = sys.stdout
 
 def indent_inc():
     global indent
@@ -16,7 +19,7 @@ def indent_dec():
 
 
 def indented(s):
-    print("%s%s" % (indent, s))
+    print("%s%s" % (indent, s), file=print_file)
 
 
 class Printer(object):
@@ -32,4 +35,4 @@ class JSONPrinter(Printer):
         Printer.__init__(self, argsj)
 
     def run(self, j):
-        print(json.dumps(j, sort_keys=True, indent=4, separators=(',', ': ')))
+        json.dump(j, print_file, sort_keys=True, indent=4, separators=(',', ': '))

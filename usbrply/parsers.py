@@ -10,7 +10,7 @@ import json
 import sys
 
 
-def pcap_gen(fn, argsj):
+def pcap_gen(fn, argsj={}):
     """
     argsj: argument dict
     required keys:
@@ -34,7 +34,7 @@ def pcap_gen(fn, argsj):
         yield p
 
 
-def pcap2json(fn, argsj):
+def pcap2json(fn, argsj={}):
 
     oj = {
         'data': list(pcap_gen(fn, argsj)),

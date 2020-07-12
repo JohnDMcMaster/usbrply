@@ -257,6 +257,7 @@ class Gen:
             'fn': self.arg_fin,
             'args': sys.argv,
         }
+        comment('Source: Linux pcap (usbmon)')
 
         if self.arg_device_hi:
             self.arg_device = -1
