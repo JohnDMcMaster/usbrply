@@ -19,9 +19,7 @@ Example applications:
 
 Questions? Please reach out on github or join #usbrply on Freenode IRC
 
-# Installation
-Its currenlty only tested under Ubuntu Linux, but probably works under Windows.
-If someone sends instructions I'll add them here
+# Linux installation
 
 ```
 # Do one of these
@@ -33,6 +31,30 @@ git clone https://github.com/JohnDMcMaster/usbrply.git
 cd usbrply
 sudo python setup.py install
 ```
+
+# Windows installation
+
+There is probably an easier way to do this but this is what I got to work. Tested on Windows 7 x64
+
+Setup python and pip
+ * Get the latest Python 3 release (https://www.python.org/downloads/)
+ * I used Python 3.7.8 (Windows x86-64 executable installer)
+ * Keep default setup options (in particular this will install pip)
+
+Install
+* Open a command prompt
+  * Default should be your home dir (ex: C:\Users\mcmaster)
+* python -m venv usbrply
+* usbrply/Scripts/activate.bat
+* pip install usbrply
+
+Test
+* If not still in venv (prompt like "(usbrply)" ): usbrply/Scripts/activate.bat
+* python usrply\Scripts\usbrply -h
+  * You should get a help message
+* Download and place in your home dir: https://github.com/JohnDMcMaster/usbrply-test/raw/master/win1.pcapng
+* python usrply\Scripts\usbrply win1.pcapng
+  * You should see python code that will reproduce the .pcap file commands
 
 # Sample workflows
 
@@ -79,6 +101,26 @@ Other useful switches:
 * --range RANGE: only decode a specific packet range. Use along with Wireshark GUI or refine a previous decode
 * see --help for more
 
+# Version history
+
+v0.0.0
+  * Crusty C++ program
+
+v0.0.1
+  * Crusty python program
+
+v1.0.0
+  * Seperate parsing from printing
+  * Windows data source officially supported
+
+v2.0.0
+  * JSON: packn moved to new "submit" and "complete" entries
+  * JSON now has raw urb structures (added to submit/complete)
+  * python3 support
+  * libpcapng support
+
+v2.0.1
+  * Fix packaging issues
 
 # JSON output
 
