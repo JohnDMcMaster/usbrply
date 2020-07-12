@@ -6,6 +6,7 @@ indent = ""
 
 print_file = sys.stdout
 
+
 def indent_inc():
     global indent
 
@@ -34,5 +35,14 @@ class JSONPrinter(Printer):
     def __init__(self, argsj):
         Printer.__init__(self, argsj)
 
-    def run(self, j):
-        json.dump(j, print_file, sort_keys=True, indent=4, separators=(',', ': '))
+    def run(self, jgen):
+        # Convert generator into static JSON
+        j = {}
+        for k, v in jgen:
+            j[k] = v
+
+        json.dump(j,
+                  print_file,
+                  sort_keys=True,
+                  indent=4,
+                  separators=(',', ': '))

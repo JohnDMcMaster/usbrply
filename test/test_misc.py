@@ -8,6 +8,7 @@ from usbrply import printer
 
 devnull = open("/dev/null", "w")
 
+
 class TestCase(unittest.TestCase):
     def setUp(self):
         """Call before every test case."""
@@ -26,12 +27,12 @@ class TestCase(unittest.TestCase):
         usbrply.parsers.pcap2json("test/data/lin1.pcapng")
 
     def test_print_json(self):
-        usbrply.printers.run("json",
-                         usbrply.parsers.pcap2json("test/data/lin1.pcapng"))
+        usbrply.printers.run(
+            "json", usbrply.parsers.pcap2json("test/data/lin1.pcapng"))
 
     def test_print_pyprinter(self):
-        usbrply.printers.run("libusb-py",
-                         usbrply.parsers.pcap2json("test/data/lin1.pcapng"))
+        usbrply.printers.run(
+            "libusb-py", usbrply.parsers.pcap2json("test/data/lin1.pcapng"))
 
 
 if __name__ == "__main__":

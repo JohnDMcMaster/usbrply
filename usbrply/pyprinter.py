@@ -68,7 +68,8 @@ def validate_read(expected, actual, msg):
         print('  Actual:   %s' % binascii.hexlify(actual,))
         #raise Exception('failed validate: %s' % msg)
 
-''', file=printer.print_file)
+''',
+                  file=printer.print_file)
         print('def replay(dev):')
         indent_inc()
         print('''\
@@ -87,7 +88,8 @@ def validate_read(expected, actual, msg):
                      timeout=None):
         dev.controlWrite(request_type, request, value, index, data,
                      timeout=(1000 if timeout is None else timeout))
-''', file=printer.print_file)
+''',
+              file=printer.print_file)
 
     def footer(self):
         if not self.wrapper:
@@ -125,14 +127,20 @@ if __name__ == "__main__":
     dev.resetDevice()
     replay(dev)
 
-''', file=printer.print_file)
+''',
+              file=printer.print_file)
 
-    def run(self, j):
+    def run(self, jgen):
         self.header()
 
         # Last wire command (ie non-comment)
         # Used to optionally generate timing
         prevd = None
+
+        # Convert generator into static JSON
+        j = {}
+        for k, v in jgen:
+            j[k] = v
 
         for d in j["data"]:
             # print(d)

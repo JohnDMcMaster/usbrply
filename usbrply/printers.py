@@ -3,8 +3,6 @@ from pyprinter import LibusbPyPrinter
 
 
 def run(ofmt, j, argsj={}):
-    pass
-
     cls = {
         "json": JSONPrinter,
         # "libusb-c": LibusbCPrinter,

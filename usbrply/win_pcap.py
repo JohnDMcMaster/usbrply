@@ -222,6 +222,8 @@ usb_urb_fmt = usb_urb_win_fmt
 
 usb_urb_sz = struct.calcsize(usb_urb_fmt)
 
+jbuff = None
+
 
 def usb_urb(s):
     return usb_urb_nt(*struct.unpack(usb_urb_fmt, str(s)))
@@ -233,7 +235,7 @@ def dbg(s):
 
 
 def comment(s):
-    oj['data'].append({'type': 'comment', 'v': s})
+    jbuff.append({'type': 'comment', 'v': s})
 
 
 def warning(s):
@@ -606,7 +608,7 @@ class Gen:
             else:
                 raise Exception('invalid response')
 
-        oj['data'].append({
+        jbuff.append({
             'type': 'controlRead',
             'bRequestType': self.submit.m_ctrl.bRequestType,
             'bRequest': self.submit.m_ctrl.bRequest,
@@ -641,7 +643,7 @@ class Gen:
             data_str = bytes2AnonArray(data)
             data_size = len(data)
 
-        oj['data'].append({
+        jbuff.append({
             'type': 'controlWrite',
             'bRequestType': self.submit.m_ctrl.bRequestType,
             'bRequest': self.submit.m_ctrl.bRequest,
@@ -744,7 +746,7 @@ class Gen:
             data_size = max_payload_sz
 
         # output below
-        oj['data'].append({
+        jbuff.append({
             'type': 'bulkRead',
             'endp': self.submit.m_urb.endpoint,
             'len': data_size,
@@ -763,7 +765,7 @@ class Gen:
     def processBulkCompleteOut(self, dat_cur):
         data_size = 0
 
-        oj['data'].append({
+        jbuff.append({
             'type': 'bulkWrite',
             'endp': self.submit.m_urb.endpoint,
             'data': bytes2AnonArray(self.submit.m_data_out),
@@ -809,13 +811,15 @@ class Gen:
         self.device_keep = max(self.device_keep, self.urb.device)
 
     def run(self):
-        global oj
+        global jbuff
 
-        oj = {
-            'data': [],
-            'fn': self.arg_fin,
-            'args': sys.argv,
-        }
+        yield 'parser', "win-pcap"
+        yield "fn", self.arg_fin
+        yield 'args', sys.argv
+        yield 'packet_min', g_min_packet
+        yield 'packet_max', g_max_packet
+
+        jbuff = []
 
         comment('Source: Windows pcap (USBPcap)')
 
@@ -844,5 +848,4 @@ class Gen:
                     (len(self.pending_complete)))
 
         # TODO: find a better way to stream this
-        for v in oj['data']:
-            yield v
+        yield "data", jbuff

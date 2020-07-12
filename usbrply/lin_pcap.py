@@ -16,8 +16,7 @@ verbose = False
 g_min_packet = 0
 g_max_packet = float('inf')
 
-vid = 0
-pid = 0
+jbuff = None
 
 
 def dbg(s):
@@ -27,7 +26,7 @@ def dbg(s):
 
 def comment(s):
     dbg(("comment", s))
-    oj['data'].append({'type': 'comment', 'v': s})
+    jbuff.append({'type': 'comment', 'v': s})
 
 
 def warning(s):
@@ -250,13 +249,15 @@ class Gen:
     """
 
     def run(self):
-        global oj
+        global jbuff
 
-        oj = {
-            'data': [],
-            'fn': self.arg_fin,
-            'args': sys.argv,
-        }
+        yield 'parser', "lin-pcap"
+        yield "fn", self.arg_fin
+        yield 'args', sys.argv
+        yield 'packet_min', g_min_packet
+        yield 'packet_max', g_max_packet
+
+        jbuff = []
         comment('Source: Linux pcap (usbmon)')
 
         if self.arg_device_hi:
@@ -280,8 +281,7 @@ class Gen:
             warning("%lu pending submit requests" % (len(self.pending_submit)))
 
         # TODO: find a better way to stream this
-        for v in oj['data']:
-            yield v
+        yield "data", jbuff
 
     def loop_cb_devmax(self, caplen, packet, ts):
         self.cur_packn += 1
@@ -508,7 +508,7 @@ class Gen:
             else:
                 raise Exception('invalid response')
 
-        oj['data'].append({
+        jbuff.append({
             'type': 'controlRead',
             'bRequestType': self.submit.m_ctrl.bRequestType,
             'bRequest': self.submit.m_ctrl.bRequest,
@@ -539,7 +539,7 @@ class Gen:
             data_str = bytes2AnonArray(self.submit.m_data_out)
             data_size = len(self.submit.m_data_out)
 
-        oj['data'].append({
+        jbuff.append({
             'type': 'controlWrite',
             'bRequestType': self.submit.m_ctrl.bRequestType,
             'bRequest': self.submit.m_ctrl.bRequest,
@@ -639,7 +639,7 @@ class Gen:
             data_size = max_payload_sz
 
         # output below
-        oj['data'].append({
+        jbuff.append({
             'type': 'bulkRead',
             'endp': self.submit.m_urb.endpoint,
             'len': data_size,
@@ -667,10 +667,8 @@ class Gen:
         """
 
     def processBulkCompleteOut(self, dat_cur):
-        data_size = 0
-
         # output below
-        oj['data'].append({
+        jbuff.append({
             'type': 'bulkWrite',
             'endp': self.submit.m_urb.endpoint,
             'data': bytes2AnonArray(self.submit.m_data_out),
