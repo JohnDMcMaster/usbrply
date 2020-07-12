@@ -24,6 +24,10 @@ Its currenlty only tested under Ubuntu Linux, but probably works under Windows.
 If someone sends instructions I'll add them here
 
 ```
+# Do one of these
+# Easier to setup, but slower
+sudo pip install python-pcapng
+# Much faster, but no longer maintained
 sudo apt-get install -y python-libpcap
 git clone https://github.com/JohnDMcMaster/usbrply.git
 cd usbrply
