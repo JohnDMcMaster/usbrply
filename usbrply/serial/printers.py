@@ -2,6 +2,7 @@ import binascii
 from usbrply.printer import Printer, indented, indent_inc, indent_dec
 from usbrply.pyprinter import bytes2AnonArray
 
+
 class TextFT2232CPrinter(object):
     def __init__(self, args):
         self.ascii = args.ascii

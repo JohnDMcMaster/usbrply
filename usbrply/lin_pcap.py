@@ -50,7 +50,6 @@ class PendingRX:
         self.m_data_out = None
 
 
-
 class payload_bytes_type_t:
     def __init__(self):
         self.req_in = 0
@@ -234,8 +233,6 @@ class Gen:
 
         self.device_keep = args.device
 
-        
-
     def run(self):
         global oj
 
@@ -260,7 +257,8 @@ class Gen:
         p.loop(-1, self.loop_cb)
 
         if len(self.pending_complete) != 0:
-            warning("%lu pending complete requests" % (len(self.pending_complete)))
+            warning("%lu pending complete requests" %
+                    (len(self.pending_complete)))
         if len(self.pending_submit) != 0:
             warning("%lu pending submit requests" % (len(self.pending_submit)))
 
@@ -349,7 +347,8 @@ class Gen:
 
         if self.urb.type == URB_COMPLETE:
             if args.verbose:
-                print('Pending completes (%d):' % (len(self.pending_complete), ))
+                print('Pending completes (%d):' %
+                      (len(self.pending_complete), ))
                 for k in self.pending_complete:
                     print('  %s' % (k, ))
             # for some reason usbmon will occasionally give packets out of order
@@ -359,7 +358,8 @@ class Gen:
                         (self.pktn_str(), self.urb.id))
                 self.pending_submit[self.urb.id] = (self.urb, dat_cur)
             else:
-                self.process_complete(self.pending_complete[self.urb.id], self.urb, dat_cur)
+                self.process_complete(self.pending_complete[self.urb.id],
+                                      self.urb, dat_cur)
 
         elif self.urb.type == URB_SUBMIT:
             # Find the matching submit request
@@ -379,12 +379,16 @@ class Gen:
             # After processing check if it should trigger additional processing
             if self.urb.id in self.pending_submit:
                 # oh snap solved a temporal anomaly
-                commet("Packet %s: received 0x%016lX submit after complete (probably recycled URB)" % (self.g_cur_packet, self.urb.id))
+                commet(
+                    "Packet %s: received 0x%016lX submit after complete (probably recycled URB)"
+                    % (self.g_cur_packet, self.urb.id))
                 # Add but will be immediately popped
                 # is this resolution is actually a recycled URB and this would mix up the packet between transactions?
                 if 0:
-                    urb_complete, complete_dat_cur = self.pending_submit[self.urb.id]
-                    self.process_complete(self.pending_complete[self.urb.id], urb_complete, complete_dat_cur)
+                    urb_complete, complete_dat_cur = self.pending_submit[
+                        self.urb.id]
+                    self.process_complete(self.pending_complete[self.urb.id],
+                                          urb_complete, complete_dat_cur)
 
         self.submit = None
         self.urb = None
@@ -407,7 +411,7 @@ class Gen:
         # Discarded?
         if self.submit is not None:
             self.packnum()
-    
+
             # What was EREMOTEIO?
             EREMOTEIO = -121
             if self.urb.status != 0 and not (not args.remoteio
@@ -415,7 +419,7 @@ class Gen:
                 warning('complete code %s (%s)' %
                         (self.urb.status,
                          errno.errorcode.get(-self.urb.status, "unknown")))
-    
+
             # Find the matching submit request
             if self.urb.transfer_type == URB_CONTROL:
                 self.processControlComplete(dat_cur)
@@ -428,7 +432,6 @@ class Gen:
             del self.pending_submit[self.urb.id]
         if self.urb.id in self.pending_complete:
             del self.pending_complete[self.urb.id]
-
 
     def processControlSubmit(self, dat_cur):
         pending = PendingRX()
@@ -631,7 +634,8 @@ class Gen:
         # Verify we actually have enough / expected
         # If exact match don't care
         if len(dat_cur) > max_payload_sz:
-            warning('requested max %u bytes but got %u' % (max_payload_sz, len(dat_cur)))
+            warning('requested max %u bytes but got %u' %
+                    (max_payload_sz, len(dat_cur)))
         elif len(dat_cur) < max_payload_sz and args.print_short:
             comment("NOTE:: req max %u but got %u" %
                     (max_payload_sz, len(dat_cur)))
