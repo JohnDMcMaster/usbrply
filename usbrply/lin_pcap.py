@@ -217,6 +217,12 @@ class Gen(PcapGen):
         return bool(self.args.get("setup", True))
     """
 
+    def comment_source(self):
+        self.gcomment('Source: Linux pcap (usbmon)')
+
+    def platform(self):
+        return "linux"
+
     def loop_cb_devmax(self, caplen, packet, ts):
         self.cur_packn += 1
         if self.cur_packn < self.min_packet or self.cur_packn > self.max_packet:
@@ -242,9 +248,6 @@ class Gen(PcapGen):
         dat_cur = packet[usb_urb_sz:]
 
         self.arg_device = max(self.arg_device, self.urb.device)
-
-    def comment_source(self):
-        self.gcomment('Source: Linux pcap (usbmon)')
 
     def loop_cb(self, caplen, packet, ts):
         self.cur_packn += 1

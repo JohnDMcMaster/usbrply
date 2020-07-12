@@ -332,6 +332,9 @@ class Gen(PcapGen):
     def comment_source(self):
         self.gcomment('Source: Windows pcap (USBPcap)')
 
+    def platform(self):
+        return "windows"
+
     def loop_cb(self, caplen, packet, ts):
         try:
             self.cur_packn += 1

@@ -8,8 +8,8 @@ class PcapGen(object):
         # JSON data objects buffered for next yield
         self.jbuff = None
         self.pcomments = None
-        self.min_packet = 0
-        self.max_packet = float('inf')
+        self.min_packet = argsj.get("min_packet", 0)
+        self.max_packet = argsj.get("max_packet", float('inf'))
 
         # XXX: don't think this is actually used, verify
         self.arg_fx2 = argsj.get("fx2", False)
@@ -85,8 +85,12 @@ class PcapGen(object):
             yield p
         self.jbuff = []
 
+    def platform(self):
+        assert 0, "required"
+
     def run(self):
         yield 'parser', "lin-pcap"
+        yield 'platform', self.platform()
         yield "fn", self.arg_fin
         yield 'args', sys.argv
         yield 'packet_min', self.min_packet

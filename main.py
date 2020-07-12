@@ -91,23 +91,29 @@ def main():
     parser.add_argument('fin', help='File name in')
     args = parser.parse_args()
 
+    argsj = args.__dict__
+
     vid = int(args.vid, 0)
     pid = int(args.pid, 0)
 
+    argsj['vid'] = vid
+    argsj['pid'] = pid
+
     if args.range:
-        (g_min_packet, g_max_packet) = args.range.split(':')
-        if len(g_min_packet) == 0:
-            g_min_packet = 0
+        (min_packet, max_packet) = args.range.split(':')
+        if len(min_packet) == 0:
+            min_packet = 0
         else:
-            g_min_packet = int(g_min_packet, 0)
-        if len(g_max_packet) == 0:
-            g_max_packet = float('inf')
+            min_packet = int(min_packet, 0)
+        if len(max_packet) == 0:
+            max_packet = float('inf')
         else:
-            g_max_packet = int(g_max_packet, 0)
+            max_packet = int(max_packet, 0)
+        argsj['min_packet'] = min_packet
+        argsj['max_packet'] = max_packet
 
     # assert args.parser in ("lin-pcap","win-pcap")
 
-    argsj = args.__dict__
     parsed = usbrply.parsers.pcap2json(args.fin, argsj)
     filters = []
     if args.comment or args.fx2:
