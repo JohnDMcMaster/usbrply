@@ -39,7 +39,7 @@ setup(
     packages=find_packages(),
     scripts=scripts_dist,
     install_requires=[
-        #'pcap',
+        "python-pcapng",
     ],
     long_description=read('README.md'),
     classifiers=[
