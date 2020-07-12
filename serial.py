@@ -114,19 +114,32 @@ if __name__ == "__main__":
         fout = open(fnout, 'w')
         sys.stdout = fout
 
-    txtj = parser(args).run(usbrply.parsers.pcap2json(args))
+    print("")
+    print("")
+    print("")
+    print("PASS: USB parse")
+    usbj = usbrply.parsers.pcap2json(args)
 
     print("")
     print("")
     print("")
+    print("PASS: serial parse")
+    txtj = parser(args).run(usbj)
+
+    print("")
+    print("")
+    print("")
+    print("PASS: serial print")
     printer(args).run(txtj)
 
     if 1:
         print("")
         print("")
         print("")
+        print("PASS: MPSSE parse")
         mpssej = mpsse.MPSSEParser().run(txtj)
         print("")
         print("")
         print("")
+        print("PASS: MPSSE print")
         mpsse.MPSSETextPrinter(args).run(mpssej)
