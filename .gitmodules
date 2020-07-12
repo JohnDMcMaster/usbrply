@@ -1,0 +1,4 @@
+[submodule "usbrply-test"]
+	path = usbrply-test
+	url = https://github.com/JohnDMcMaster/usbrply-test.git
+	branch = master
