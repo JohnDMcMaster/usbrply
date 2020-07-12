@@ -50,10 +50,6 @@ class PendingRX:
         self.m_data_out = None
 
 
-# Pending requests
-# Typically size 0-1 but sometimes more pile up
-g_pending = {}
-
 
 class payload_bytes_type_t:
     def __init__(self):
@@ -225,8 +221,20 @@ class Gen:
 
         self.g_cur_packet = 0
         self.rel_pkt = 0
+
+        # Pending requests
+        # Typically size 0-1 but sometimes more pile up
+        # Entry can be set to None which means drop on complete
+        # Holds PendingRXs
         self.pending_complete = {}
+        # Got a complete wi/o a submit
+        # These are less common but they happen somewhat regularly
+        # Holds (self.urb, dat_cur)
+        self.pending_submit = {}
+
         self.device_keep = args.device
+
+        
 
     def run(self):
         global oj
@@ -251,8 +259,10 @@ class Gen:
         p.open_offline(args.fin)
         p.loop(-1, self.loop_cb)
 
-        if len(g_pending) != 0:
-            warning("%lu pending requests" % (len(g_pending)))
+        if len(self.pending_complete) != 0:
+            warning("%lu pending complete requests" % (len(self.pending_complete)))
+        if len(self.pending_submit) != 0:
+            warning("%lu pending submit requests" % (len(self.pending_submit)))
 
         # TODO: find a better way to stream this
         for v in oj['data']:
@@ -322,7 +332,7 @@ class Gen:
             ctrl = usb_ctrlrequest(self.urb.ctrlrequest[0:usb_ctrlrequest_sz])
             reqst = req2s(ctrl, fx2=args.fx2)
             if reqst in setup_reqs or reqst == "GET_STATUS" and self.urb.type == URB_SUBMIT:
-                g_pending[self.urb.id] = None
+                self.pending_complete[self.urb.id] = None
                 self.submit = None
                 self.urb = None
                 return
@@ -339,17 +349,17 @@ class Gen:
 
         if self.urb.type == URB_COMPLETE:
             if args.verbose:
-                print('Pending (%d):' % (len(g_pending), ))
-                for k in g_pending:
+                print('Pending completes (%d):' % (len(self.pending_complete), ))
+                for k in self.pending_complete:
                     print('  %s' % (k, ))
             # for some reason usbmon will occasionally give packets out of order
-            if not self.urb.id in g_pending:
+            if not self.urb.id in self.pending_complete:
                 #raise Exception("Packet %s missing submit.  URB ID: 0x%016lX" % (self.pktn_str(), self.urb.id))
                 warning("Packet %s missing submit.  URB ID: 0x%016lX" %
                         (self.pktn_str(), self.urb.id))
-                self.pending_complete[self.urb.id] = (self.urb, dat_cur)
+                self.pending_submit[self.urb.id] = (self.urb, dat_cur)
             else:
-                self.process_complete(dat_cur)
+                self.process_complete(self.pending_complete[self.urb.id], self.urb, dat_cur)
 
         elif self.urb.type == URB_SUBMIT:
             # Find the matching submit request
@@ -364,15 +374,17 @@ class Gen:
                 pending.packet_number = self.pktn_str()
                 if args.verbose:
                     print('Added pending interrupt URB 0x%016lX' % self.urb.id)
-                g_pending[self.urb.id] = pending
+                self.pending_complete[self.urb.id] = pending
 
-            if self.urb.id in self.pending_complete:
+            # After processing check if it should trigger additional processing
+            if self.urb.id in self.pending_submit:
                 # oh snap solved a temporal anomaly
-                urb_submit = self.urb
-                (urb_complete, dat_cur) = self.pending_complete[self.urb.id]
-                del self.pending_complete[self.urb.id]
-                self.urb = urb_complete
-                self.process_complete(dat_cur)
+                commet("Packet %s: received 0x%016lX submit after complete (probably recycled URB)" % (self.g_cur_packet, self.urb.id))
+                # Add but will be immediately popped
+                # is this resolution is actually a recycled URB and this would mix up the packet between transactions?
+                if 0:
+                    urb_complete, complete_dat_cur = self.pending_submit[self.urb.id]
+                    self.process_complete(self.pending_complete[self.urb.id], urb_complete, complete_dat_cur)
 
         self.submit = None
         self.urb = None
@@ -383,31 +395,40 @@ class Gen:
         else:
             return self.g_cur_packet
 
-    def process_complete(self, dat_cur):
-        self.submit = g_pending[self.urb.id]
-        # Done with it, get rid of it
-        del g_pending[self.urb.id]
+    def process_complete(self, pending_rx, urb_complete, dat_cur):
+        """
+        Warning: this may be called with current urb as either the submit or the complete
+        Normalize here which may swap self.urb
+        """
+        # assert type(pending_rx) is PendingRX, type(pending_rx)
+        self.submit = pending_rx
+        self.urb = urb_complete
 
         # Discarded?
-        if self.submit is None:
-            return
+        if self.submit is not None:
+            self.packnum()
+    
+            # What was EREMOTEIO?
+            EREMOTEIO = -121
+            if self.urb.status != 0 and not (not args.remoteio
+                                             and self.urb.status == EREMOTEIO):
+                warning('complete code %s (%s)' %
+                        (self.urb.status,
+                         errno.errorcode.get(-self.urb.status, "unknown")))
+    
+            # Find the matching submit request
+            if self.urb.transfer_type == URB_CONTROL:
+                self.processControlComplete(dat_cur)
+            elif self.urb.transfer_type == URB_BULK:
+                self.processBulkComplete(dat_cur)
+            elif self.urb.transfer_type == URB_INTERRUPT:
+                self.processInterruptComplete(dat_cur)
 
-        self.packnum()
+        if self.urb.id in self.pending_submit:
+            del self.pending_submit[self.urb.id]
+        if self.urb.id in self.pending_complete:
+            del self.pending_complete[self.urb.id]
 
-        EREMOTEIO = -121
-        if self.urb.status != 0 and not (not args.remoteio
-                                         and self.urb.status == EREMOTEIO):
-            warning('complete code %s (%s)' %
-                    (self.urb.status,
-                     errno.errorcode.get(-self.urb.status, "unknown")))
-
-        # Find the matching submit request
-        if self.urb.transfer_type == URB_CONTROL:
-            self.processControlComplete(dat_cur)
-        elif self.urb.transfer_type == URB_BULK:
-            self.processBulkComplete(dat_cur)
-        elif self.urb.transfer_type == URB_INTERRUPT:
-            self.processInterruptComplete(dat_cur)
 
     def processControlSubmit(self, dat_cur):
         pending = PendingRX()
@@ -444,7 +465,7 @@ class Gen:
         pending.packet_number = self.pktn_str()
         if args.verbose:
             print('Added pending control URB %s' % self.urb.id)
-        g_pending[self.urb.id] = pending
+        self.pending_complete[self.urb.id] = pending
 
     def processControlCompleteIn(self, dat_cur):
         packet_numbering = ''
@@ -581,9 +602,9 @@ class Gen:
             pending.m_data_out = bytes(dat_cur)
 
         pending.packet_number = self.pktn_str()
+        self.pending_complete[self.urb.id] = pending
         if args.verbose:
             print('Added pending bulk URB 0x%016lX' % self.urb.id)
-        g_pending[self.urb.id] = pending
 
     def processBulkCompleteIn(self, dat_cur):
         packet_numbering = ''
