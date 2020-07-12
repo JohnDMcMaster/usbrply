@@ -706,13 +706,14 @@ class Gen:
     def output_packet(self, j):
         urbj_submit = urb2json(self.submit.m_urb)
         urbj_complete = urb2json(self.urb)
+        nsub, ncomplete = self.packnumt()
         j["submit"] = {
-            "packn": self.submit.packet_number,
+            "packn": nsub,
             'urb': urbj_submit,
             # 't': urbj_submit["t"],
         }
         j["complete"] = {
-            'packn': self.packnumt(),
+            'packn': ncomplete,
             'urb': urbj_complete,
             # 't': urbj_complete["t"],
         }
