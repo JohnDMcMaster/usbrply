@@ -271,11 +271,6 @@ def add_bool_arg(parser, yes_arg, default=False, **kwargs):
                         **kwargs)
 
 
-# Pending requests
-# Typically size 0-1 but sometimes more pile up
-g_pending = {}
-
-
 class payload_bytes_type_t:
     def __init__(self):
         self.req_in = 0
@@ -389,7 +384,7 @@ class Gen:
                 # print('Len: %d' % len(packet))
                 hexdump(packet)
                 #print(ts)
-                print('Pending: %d' % len(g_pending))
+                print('Pending: %d' % len(self.pending_complete))
 
             dbg("Length %u" % (len(packet), ))
             if len(packet) < usb_urb_sz:
@@ -448,11 +443,11 @@ class Gen:
                 def skip():
                     # Was the submit marked for ignore?
                     # For some reason these don't have status packets
-                    if self.urb.id in g_pending and g_pending[
+                    if self.urb.id in self.pending_complete and self.pending_complete[
                             self.urb.id] is None:
                         return True
                     # Keep any other pending packets
-                    if self.urb.id in g_pending:
+                    if self.urb.id in self.pending_complete:
                         return False
                     # If not already submitted, must be a submit then
                     # but we could have started a capture before submit
@@ -468,7 +463,7 @@ class Gen:
 
                 if skip():
                     print('Drop setup packet %s' % self.pktn_str())
-                    g_pending[self.urb.id] = None
+                    self.pending_complete[self.urb.id] = None
                     self.submit = None
                     self.urb = None
                     return
@@ -487,11 +482,11 @@ class Gen:
             # Complete?
             if self.urb.irp_info & 1 == INFO_PDO2FDO:
                 if args.verbose:
-                    print('Pending (%d):' % (len(g_pending), ))
-                    for k in g_pending:
+                    print('Pending (%d):' % (len(self.pending_complete), ))
+                    for k in self.pending_complete:
                         print('  %s' % (urb_id_str(k), ))
                 # for some reason usbmon will occasionally give packets out of order
-                if not self.urb.id in g_pending:
+                if not self.urb.id in self.pending_complete:
                     #raise Exception("Packet %s missing submit.  URB ID: 0x%016lX" % (self.pktn_str(), self.urb.id))
                     comment(
                         "WARNING: Packet %s missing submit.  URB ID: 0x%016lX"
@@ -511,7 +506,7 @@ class Gen:
                     pending.raw = self.urb_raw
                     pending.m_urb = self.urb
                     pending.packet_number = self.pktn_str()
-                    g_pending[self.urb.id] = pending
+                    self.pending_complete[self.urb.id] = pending
                     printv('Added pending bulk URB %s' % self.urb.id)
 
             self.submit = None
@@ -528,9 +523,9 @@ class Gen:
 
     def process_complete(self, dat_cur):
         printv("process_complete")
-        self.submit = g_pending[self.urb.id]
+        self.submit = self.pending_complete[self.urb.id]
         # Done with it, get rid of it
-        del g_pending[self.urb.id]
+        del self.pending_complete[self.urb.id]
         printv("Matched submit packet %s" % self.submit.packet_number)
 
         # Discarded?
@@ -585,9 +580,9 @@ class Gen:
 
         pending.m_ctrl = ctrl
         pending.packet_number = self.pktn_str()
-        g_pending[self.urb.id] = pending
+        self.pending_complete[self.urb.id] = pending
         printv('Added pending control URB %s, len %d' %
-               (urb_id_str(self.urb.id), len(g_pending)))
+               (urb_id_str(self.urb.id), len(self.pending_complete)))
 
     def processControlCompleteIn(self, dat_cur):
         packet_numbering = ''
@@ -729,7 +724,7 @@ class Gen:
             pending.m_data_out = str(dat_cur)
 
         pending.packet_number = self.pktn_str()
-        g_pending[self.urb.id] = pending
+        self.pending_complete[self.urb.id] = pending
         printv('Added pending bulk URB %s' % self.urb.id)
 
     def processBulkCompleteIn(self, dat_cur):
@@ -844,8 +839,9 @@ class Gen:
         p.open_offline(args.fin)
         p.loop(-1, self.loop_cb)
 
-        if len(g_pending) != 0:
-            comment("WARNING: %lu pending requests" % (len(g_pending)))
+        if len(self.pending_complete) != 0:
+            comment("WARNING: %lu pending requests" %
+                    (len(self.pending_complete)))
 
         # TODO: find a better way to stream this
         for v in oj['data']:
