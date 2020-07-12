@@ -26,6 +26,7 @@ def dbg(s):
 
 
 def comment(s):
+    dbg(("comment", s))
     oj['data'].append({'type': 'comment', 'v': s})
 
 
@@ -289,9 +290,9 @@ class Gen:
             # print("# Skipping packet %d" % (self.g_cur_packet))
             return
         if args.verbose:
-            print()
-            print()
-            print()
+            print("")
+            print("")
+            print("")
             print('PACKET %s' % (self.g_cur_packet, ))
 
         if caplen != len(packet):
@@ -329,7 +330,7 @@ class Gen:
 
         if args.verbose:
             print("Header size: %lu" % (usb_urb_sz, ))
-            print_urb(urb)
+            print_urb(self.urb)
 
         if self.urb.type == URB_ERROR:
             print("oh noes!")
@@ -362,7 +363,7 @@ class Gen:
                 pending.m_urb = self.urb
                 pending.packet_number = self.pktn_str()
                 if args.verbose:
-                    print('Added pending bulk URB %s' % self.urb.id)
+                    print('Added pending interrupt URB 0x%016lX' % self.urb.id)
                 g_pending[self.urb.id] = pending
 
             if self.urb.id in self.pending_complete:
@@ -581,7 +582,7 @@ class Gen:
 
         pending.packet_number = self.pktn_str()
         if args.verbose:
-            print('Added pending bulk URB %s' % self.urb.id)
+            print('Added pending bulk URB 0x%016lX' % self.urb.id)
         g_pending[self.urb.id] = pending
 
     def processBulkCompleteIn(self, dat_cur):
@@ -608,13 +609,11 @@ class Gen:
 
         # Verify we actually have enough / expected
         # If exact match don't care
-        if len(dat_cur) != max_payload_sz:
-            if len(dat_cur) < max_payload_sz:
-                if args.print_short:
-                    comment("NOTE:: req max %u but got %u" %
-                            (max_payload_sz, len(dat_cur)))
-            else:
-                raise Exception('invalid response')
+        if len(dat_cur) > max_payload_sz:
+            warning('requested max %u bytes but got %u' % (max_payload_sz, len(dat_cur)))
+        elif len(dat_cur) < max_payload_sz and args.print_short:
+            comment("NOTE:: req max %u but got %u" %
+                    (max_payload_sz, len(dat_cur)))
 
         if max_payload_sz:
             if args.packet_numbers:
