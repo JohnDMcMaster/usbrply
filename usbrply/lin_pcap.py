@@ -282,15 +282,6 @@ class Gen(PcapGen):
         # Drop if not specified device
         if self.arg_device is not None and self.urb.device != self.arg_device:
             return
-        # Drop if is generic device management traffic
-        if not self.arg_setup and self.urb.transfer_type == URB_CONTROL:
-            ctrl = usb_ctrlrequest(self.urb.ctrlrequest[0:usb_ctrlrequest_sz])
-            reqst = req2s(ctrl.bRequestType, ctrl.bRequest)
-            if reqst in setup_reqs or reqst == "GET_STATUS" and self.urb.type == URB_SUBMIT:
-                self.pending_complete[self.urb.id] = None
-                self.submit = None
-                self.urb = None
-                return
         self.rel_pkt += 1
 
         if self.verbose:

@@ -61,22 +61,6 @@ feat_i2s = {
     2: 'TEST_MODE',
 }
 
-setup_reqs = [
-    # reply type
-    #"GET_STATUS",
-    "CLEAR_FEATURE",
-    "SET_FEATURE",
-    "SET_ADDRESS",
-    "GET_DESCRIPTOR",
-    "SET_DESCRIPTOR",
-    "GET_CONFIGURATION",
-    "SET_CONFIGURATION",
-    "SET_INTERFACE",
-    "GET_INTERFACE",
-    "CLEAR_FEATURE",
-    "SYNCH_FRAME",
-]
-
 
 def req2s(bRequestType, bRequest, vendor=None):
     m = {

@@ -411,36 +411,6 @@ class Gen(PcapGen):
                     self.printv('drop xfer_status')
                     return
 
-            # Drop if generic device management traffic
-            if not self.arg_setup and self.urb.transfer_type == URB_CONTROL:
-
-                def skip():
-                    # Was the submit marked for ignore?
-                    # For some reason these don't have status packets
-                    if self.urb.id in self.pending_complete and self.pending_complete[
-                            self.urb.id] is None:
-                        return True
-                    # Keep any other pending packets
-                    if self.urb.id in self.pending_complete:
-                        return False
-                    # If not already submitted, must be a submit then
-                    # but we could have started a capture before submit
-                    if self.urb.irp_info & 1 == INFO_PDO2FDO and self.urb.transfer_type == URB_CONTROL:
-                        # Skip xfer_stage
-                        buf = dat_cur[1:usb_ctrlrequest_sz + 1]
-                        ctrl = usb_ctrlrequest(buf)
-                        reqst = req2s(ctrl.bRequestType, ctrl.bRequest)
-                        return (reqst in setup_reqs) or (
-                            reqst == "GET_STATUS" and
-                            (self.urb.endpoint
-                             & URB_TRANSFER_IN) == URB_TRANSFER_IN)
-
-                if skip():
-                    print('Drop setup packet %s' % self.pktn_str())
-                    self.pending_complete[self.urb.id] = None
-                    self.submit = None
-                    self.urb = None
-                    return
             self.rel_pkt += 1
 
             if self.verbose:

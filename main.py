@@ -112,6 +112,8 @@ def main():
 
     parsed = usbrply.parsers.pcap2json(args.fin, argsj)
     filters = []
+    if not args.setup:
+        filters.append("setup")
     if args.comment or args.fx2:
         filters.append("commenter")
     filtered = usbrply.filters.run(filters, parsed, argsj)
