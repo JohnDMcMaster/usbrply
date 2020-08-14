@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from .usb import *
-from .util import hexdump
+from .util import hexdump, tostr
 from .com_pcap import PcapGen
 
 import sys
@@ -86,15 +86,8 @@ def usb_ctrlrequest(s):
     return usb_ctrlrequest_nt(*struct.unpack(usb_ctrlrequest_fmt, bytes(s)))
 
 
-def bytes2AnonArray(bytes_data, byte_type="uint8_t"):
-    # In Python2 bytes_data is a string, in Python3 it's bytes.
-    # The element type is different (string vs int) and we have to deal
-    # with that when printing this number as hex.
-    if sys.version_info[0] == 2:
-        myord = ord
-    else:
-        myord = lambda x: x
-    return binascii.hexlify(bytes_data)
+def bytes2Hex(bytes_data):
+    return tostr(binascii.hexlify(bytes_data))
 
 
 def deviceStr():
@@ -432,7 +425,7 @@ class Gen(PcapGen):
             'wValue': self.submit.m_ctrl.wValue,
             'wIndex': self.submit.m_ctrl.wIndex,
             'wLength': self.submit.m_ctrl.wLength,
-            'data': bytes2AnonArray(dat_cur)
+            'data': bytes2Hex(dat_cur)
         })
 
         if self.submit.m_ctrl.wLength:
@@ -452,7 +445,7 @@ class Gen(PcapGen):
         # print("Data out size: %u vs urb size %u" % (submit.m_data_out_size, submit.m_urb.data_length ))
         if len(self.submit.m_data_out):
             # Note that its the submit from earlier, not the ack that we care about
-            data_str = bytes2AnonArray(self.submit.m_data_out)
+            data_str = bytes2Hex(self.submit.m_data_out)
             data_size = len(self.submit.m_data_out)
 
         self.output_packet({
@@ -461,7 +454,7 @@ class Gen(PcapGen):
             'bRequest': self.submit.m_ctrl.bRequest,
             'wValue': self.submit.m_ctrl.wValue,
             'wIndex': self.submit.m_ctrl.wIndex,
-            'data': bytes2AnonArray(self.submit.m_data_out)
+            'data': bytes2Hex(self.submit.m_data_out)
         })
 
     def processControlComplete(self, dat_cur):
@@ -538,7 +531,7 @@ class Gen(PcapGen):
             'type': 'bulkRead',
             'endp': self.submit.m_urb.endpoint,
             'len': data_size,
-            'data': bytes2AnonArray(dat_cur)
+            'data': bytes2Hex(dat_cur)
         })
 
         # Verify we actually have enough / expected
@@ -564,7 +557,7 @@ class Gen(PcapGen):
         self.output_packet({
             'type': 'bulkWrite',
             'endp': self.submit.m_urb.endpoint,
-            'data': bytes2AnonArray(self.submit.m_data_out)
+            'data': bytes2Hex(self.submit.m_data_out)
         })
 
     def processBulkComplete(self, dat_cur):

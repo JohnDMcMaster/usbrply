@@ -12,7 +12,7 @@ Bulk packets
 '''
 
 from .usb import *
-from .util import hexdump
+from .util import hexdump, tostr
 from .com_pcap import PcapGen
 
 import sys
@@ -264,8 +264,8 @@ def update_delta(pb):
     pb.out_last = pb.out
 
 
-def bytes2AnonArray(bytes, byte_type="uint8_t"):
-    return binascii.hexlify(bytes)
+def bytes2Hex(bytes):
+    return tostr(binascii.hexlify(bytes))
 
 
 def deviceStr():
@@ -440,12 +440,7 @@ class Gen(PcapGen):
                 elif self.urb.transfer_type == URB_BULK:
                     self.processBulkSubmit(dat_cur)
                 elif self.urb.transfer_type == URB_INTERRUPT:
-                    pending = PendingRX()
-                    pending.raw = self.urb_raw
-                    pending.m_urb = self.urb
-                    pending.packet_number = self.pktn_str()
-                    self.pending_complete[self.urb.id] = pending
-                    self.printv('Added pending bulk URB %s' % self.urb.id)
+                    self.processInterruptSUbmit(dat_cur)
 
             assert len(self.pcomments) == 0
             self.submit = None
@@ -554,7 +549,7 @@ class Gen(PcapGen):
             'wValue': self.submit.m_ctrl.wValue,
             'wIndex': self.submit.m_ctrl.wIndex,
             'wLength': self.submit.m_ctrl.wLength,
-            'data': bytes2AnonArray(dat_cur)
+            'data': bytes2Hex(dat_cur)
         })
 
         if self.submit.m_ctrl.wLength:
@@ -578,7 +573,7 @@ class Gen(PcapGen):
         data = dat_cur[1:]
 
         if data:
-            data_str = bytes2AnonArray(data)
+            data_str = bytes2Hex(data)
             data_size = len(data)
 
         self.output_packet({
@@ -587,7 +582,7 @@ class Gen(PcapGen):
             'bRequest': self.submit.m_ctrl.bRequest,
             'wValue': self.submit.m_ctrl.wValue,
             'wIndex': self.submit.m_ctrl.wIndex,
-            'data': bytes2AnonArray(data)
+            'data': bytes2Hex(data)
         })
 
     def processControlComplete(self, dat_cur):
@@ -668,7 +663,7 @@ class Gen(PcapGen):
             'type': 'bulkRead',
             'endp': self.submit.m_urb.endpoint,
             'len': data_size,
-            'data': bytes2AnonArray(dat_cur)
+            'data': bytes2Hex(dat_cur)
         })
 
         if max_payload_sz:
@@ -679,13 +674,25 @@ class Gen(PcapGen):
                 # TODO: consider counting instead of by captured index
                 packet_numbering = "packet"
 
+    def processInterruptSubmit(self, dat_cur):
+        pending = PendingRX()
+        pending.raw = self.urb_raw
+        pending.m_urb = self.urb
+        pending.packet_number = self.pktn_str()
+        self.pending_complete[self.urb.id] = pending
+        self.printv('Added pending interrupt URB %s' % self.urb.id)
+
+    def processInterruptComplete(self, dat_cur):
+        #warning("omitting interrupt")
+        pass
+
     def processBulkCompleteOut(self, dat_cur):
         data_size = 0
 
         self.output_packet({
             'type': 'bulkWrite',
             'endp': self.submit.m_urb.endpoint,
-            'data': bytes2AnonArray(self.submit.m_data_out)
+            'data': bytes2Hex(self.submit.m_data_out)
         })
 
     def processBulkComplete(self, dat_cur):
@@ -695,10 +702,6 @@ class Gen(PcapGen):
         else:
             g_payload_bytes.bulk.out += self.urb.data_length
             self.processBulkCompleteOut(dat_cur)
-
-    def processInterruptComplete(self, dat_cur):
-        #warning("omitting interrupt")
-        pass
 
     def loop_cb_devmax(self, caplen, packet, ts):
         self.cur_packn += 1

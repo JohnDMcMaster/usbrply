@@ -57,3 +57,31 @@ def add_bool_arg(parser, yes_arg, default=False, **kwargs):
                         dest=dest,
                         action='store_false',
                         **kwargs)
+
+
+# In Python2 bytes_data is a string, in Python3 it's bytes.
+# The element type is different (string vs int) and we have to deal
+# with that when printing this number as hex.
+if sys.version_info[0] == 2:
+    myord = ord
+else:
+    myord = lambda x: x
+
+
+def tobytes(buff):
+    if type(buff) is str:
+        #return bytearray(buff, 'ascii')
+        return bytearray([myord(c) for c in buff])
+    elif type(buff) is bytearray or type(buff) is bytes:
+        return buff
+    else:
+        assert 0, type(buff)
+
+
+def tostr(buff):
+    if type(buff) is str:
+        return buff
+    elif type(buff) is bytearray or type(buff) is bytes:
+        return ''.join([chr(b) for b in buff])
+    else:
+        assert 0, type(buff)
