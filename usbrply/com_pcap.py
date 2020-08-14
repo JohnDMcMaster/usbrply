@@ -52,9 +52,6 @@ class PcapGen(object):
         if self.arg_packet_numbers:
             self.pcomment("Generated from packet %s/%s" %
                           (self.submit.packet_number, self.pktn_str()))
-        else:
-            #self.pcomment("Generated from packet %s/%s" % (None, None))
-            pass
 
     def packnumt(self):
         if self.arg_packet_numbers:
@@ -70,6 +67,10 @@ class PcapGen(object):
 
             # Pop packets
             for data in self.jbuff:
+                if 0:
+                    import json
+                    print(data)
+                    json.dumps(data)
                 yield data
             self.jbuff = []
 

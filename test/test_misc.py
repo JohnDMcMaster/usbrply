@@ -6,6 +6,7 @@ import unittest
 import os
 from usbrply import printer
 from usbrply import parsers
+import warnings
 
 devnull = open("/dev/null", "w")
 
@@ -13,6 +14,7 @@ devnull = open("/dev/null", "w")
 class TestCase(unittest.TestCase):
     def setUp(self):
         """Call before every test case."""
+        warnings.simplefilter("ignore")
         printer.print_file = devnull
 
     def tearDown(self):
@@ -46,6 +48,9 @@ class TestCase(unittest.TestCase):
         usbrply.printers.run(
             "libusb-py", usbrply.parsers.pcap2json("test/data/win1.pcapng"))
 
+    def test_win_interrupt(self):
+        usbrply.printers.run(
+            "json", usbrply.parsers.pcap2json("test/data/win_interrupt.pcapng"))
 
 if __name__ == "__main__":
     unittest.main()  # run all tests

@@ -4,7 +4,7 @@ from .printer import Printer, indented, indent_inc, indent_dec
 import sys
 import binascii
 from . import usb
-
+from .util import myord
 
 def comment(s):
     indented('# %s' % (s, ))
@@ -14,10 +14,6 @@ def bytes2AnonArray(bytes_data):
     # In Python2 bytes_data is a string, in Python3 it's bytes.
     # The element type is different (string vs int) and we have to deal
     # with that when printing this number as hex.
-    if sys.version_info[0] == 2:
-        myord = ord
-    else:
-        myord = lambda x: x
 
     byte_str = "b\""
 
@@ -88,6 +84,13 @@ def validate_read(expected, actual, msg):
                      timeout=None):
         dev.controlWrite(request_type, request, value, index, data,
                      timeout=(1000 if timeout is None else timeout))
+
+    def interruptRead(endpoint, size, timeout=None):
+        return dev.interruptRead(endpoint, size,
+                    timeout=(1000 if timeout is None else timeout))
+
+    def interruptWrite(endpoint, data, timeout=None):
+        dev.interruptWrite(endpoint, data, timeout=(1000 if timeout is None else timeout))
 ''',
               file=printer.print_file)
 
@@ -176,9 +179,9 @@ if __name__ == "__main__":
                     (d["bRequestType"], d["bRequest"], d["wValue"],
                      d["wIndex"], d["wLength"]))
                 indented("validate_read(%s, buff, \"%s\")" %
-                         (bytes2AnonArray(d["data"]), packet_numbering))
+                         (bytes2AnonArray(binascii.unhexlify(d["data"])), packet_numbering))
             elif d["type"] == "controlWrite":
-                data_str = bytes2AnonArray(d["data"])
+                data_str = bytes2AnonArray(binascii.unhexlify(d["data"]))
                 indented("controlWrite(0x%02X, 0x%02X, 0x%04X, 0x%04X, %s)" %
                          (d["bRequestType"], d["bRequest"], d["wValue"],
                           d["wIndex"], data_str))
@@ -194,6 +197,16 @@ if __name__ == "__main__":
                 data_str = bytes2AnonArray(binascii.unhexlify(d["data"]))
                 # def bulkWrite(self, endpoint, data, timeout=0):
                 indented("bulkWrite(0x%02X, %s)" % (d["endp"], data_str))
+
+            elif d["type"] == "interruptRead":
+                data_str = "\"\""
+                indented("buff = interruptRead(0x%02X, 0x%04X)" %
+                         (d["endp"], d["len"]))
+                indented("validate_read(%s, buff, \"%s\")" % (bytes2AnonArray(
+                    binascii.unhexlify(d["data"])), packet_numbering))
+
+            elif d["type"] == "interruptWrite":
+                indented("interruptWrite(0x%02X, %s)" % (d["endp"], data_str))
 
             # these aren't event added to JSON right now
             # print('%s# WARNING: omitting interrupt' % (indent,))

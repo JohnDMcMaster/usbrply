@@ -116,7 +116,7 @@ def print_urb(urb):
 
 def urb2json(urb):
     j = dict(urb._asdict())
-    j["ctrlrequest"] = binascii.hexlify(j["ctrlrequest"])
+    j["ctrlrequest"] = bytes2Hex(j["ctrlrequest"])
     # j["data"] = binascii.hexlify(j["data"])
     j["t"] = j['sec'] + j['usec'] / 1e6
     return j
@@ -230,7 +230,7 @@ class Gen(PcapGen):
 
         self.printv("Length %u" % (len(packet), ))
         if len(packet) < usb_urb_sz:
-            hexdump(packet)
+            self.verbose and hexdump(packet)
             raise ValueError("Packet size %d is not min size %d" %
                              (len(packet), usb_urb_sz))
 
@@ -251,7 +251,7 @@ class Gen(PcapGen):
             print("")
             print("")
             print("")
-            print('PACKET %s' % (self.cur_packn, ))
+            print('LIN PACKET %s' % (self.cur_packn, ))
 
         if caplen != len(packet):
             print("packet %s: malformed, caplen %d != len %d", self.pktn_str(),

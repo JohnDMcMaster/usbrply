@@ -264,8 +264,8 @@ def update_delta(pb):
     pb.out_last = pb.out
 
 
-def bytes2Hex(bytes):
-    return tostr(binascii.hexlify(bytes))
+def bytes2Hex(bytes_data):
+    return tostr(binascii.hexlify(bytes_data))
 
 
 def deviceStr():
@@ -344,7 +344,7 @@ class Gen(PcapGen):
                 print("")
                 print("")
                 print("")
-                print('PACKET %s' % (self.cur_packn, ))
+                print('WIN PACKET %s' % (self.cur_packn, ))
 
             if caplen != len(packet):
                 print("packet %s: malformed, caplen %d != len %d",
@@ -381,6 +381,7 @@ class Gen(PcapGen):
             # Drop if not specified device
             #print(self.pktn_str(), self.urb.device, args.device)
             if self.arg_device is not None and self.urb.device != self.arg_device:
+                self.printv("Drop: device mismatch")
                 return
 
             # FIXME: hack to only process control for now
@@ -388,11 +389,6 @@ class Gen(PcapGen):
                 self.gwarning('packet %s: drop packet type %s' %
                               (self.pktn_str(),
                                transfer2str_safe(self.urb.transfer_type)))
-                return
-
-            # FIXME: hack to only process control for now
-            if self.urb.transfer_type == URB_INTERRUPT:
-                # self.gwarning('packet %s: drop packet type %s' % (self.pktn_str(), transfer2str_safe(self.urb.transfer_type)))
                 return
 
             # Drop status packets
@@ -440,7 +436,7 @@ class Gen(PcapGen):
                 elif self.urb.transfer_type == URB_BULK:
                     self.processBulkSubmit(dat_cur)
                 elif self.urb.transfer_type == URB_INTERRUPT:
-                    self.processInterruptSUbmit(dat_cur)
+                    self.processInterruptSubmit(dat_cur)
 
             assert len(self.pcomments) == 0
             self.submit = None
@@ -478,11 +474,24 @@ class Gen(PcapGen):
 
         # Find the matching submit request
         if self.urb.transfer_type == URB_CONTROL:
-            self.processControlComplete(dat_cur)
+            if self.submit.m_ctrl.bRequestType & URB_TRANSFER_IN:
+                self.processControlCompleteIn(dat_cur)
+            else:
+                self.processControlCompleteOut(dat_cur)
         elif self.urb.transfer_type == URB_BULK:
-            self.processBulkComplete(dat_cur)
+            if self.urb.endpoint & URB_TRANSFER_IN:
+                g_payload_bytes.bulk.in_ += self.urb.data_length
+                self.processBulkCompleteIn(dat_cur)
+            else:
+                g_payload_bytes.bulk.out += self.urb.data_length
+                self.processBulkCompleteOut(dat_cur)
         elif self.urb.transfer_type == URB_INTERRUPT:
-            self.processInterruptComplete(dat_cur)
+            if self.urb.endpoint & URB_TRANSFER_IN:
+                self.processInterruptCompleteIn(dat_cur)
+            else:
+                self.processInterruptCompleteOut(dat_cur)
+        else:
+            self.verbose and print("WARNING: unknown transfer type %u" % self.urb.transfer_type)
 
     def processControlSubmit(self, dat_cur):
         pending = PendingRX()
@@ -585,12 +594,6 @@ class Gen(PcapGen):
             'data': bytes2Hex(data)
         })
 
-    def processControlComplete(self, dat_cur):
-        if self.submit.m_ctrl.bRequestType & URB_TRANSFER_IN:
-            self.processControlCompleteIn(dat_cur)
-        else:
-            self.processControlCompleteOut(dat_cur)
-
     def output_packet(self, j):
         urbj_submit = urb2json(self.submit.m_urb)
         urbj_complete = urb2json(self.urb)
@@ -641,21 +644,16 @@ class Gen(PcapGen):
         self.printv('Added pending bulk URB %s' % self.urb.id)
 
     def processBulkCompleteIn(self, dat_cur):
-        packet_numbering = ''
-        data_size = 0
-        data_str = "None"
-
         # looks like maybe windows doesn't report the request size?
         # think this is always 0
         assert self.submit.m_urb.data_length == 0
 
+        # FIXME: this is a messy conversion artifact from the C code
+        # Is it legal to have a 0 length bulk in?
+        data_size = 0
         # instead, use the recieved buffer size as a best estimated
         max_payload_sz = len(dat_cur)
-
-        # FIXME: this is a messy conversion artfact from the C code
-        # Is it legal to have a 0 length bulk in?
         if max_payload_sz:
-            data_str = "buff"
             data_size = max_payload_sz
 
         # output below
@@ -666,14 +664,6 @@ class Gen(PcapGen):
             'data': bytes2Hex(dat_cur)
         })
 
-        if max_payload_sz:
-            if self.arg_packet_numbers:
-                packet_numbering = "packet %s/%s" % (self.submit.packet_number,
-                                                     self.pktn_str())
-            else:
-                # TODO: consider counting instead of by captured index
-                packet_numbering = "packet"
-
     def processInterruptSubmit(self, dat_cur):
         pending = PendingRX()
         pending.raw = self.urb_raw
@@ -682,26 +672,53 @@ class Gen(PcapGen):
         self.pending_complete[self.urb.id] = pending
         self.printv('Added pending interrupt URB %s' % self.urb.id)
 
-    def processInterruptComplete(self, dat_cur):
-        #warning("omitting interrupt")
-        pass
+    def processInterruptCompleteOut(self, dat_cur):
+        # looks like maybe windows doesn't report the request size?
+        # think this is always 0
+        assert self.submit.m_urb.data_length == 0
+
+        # FIXME: this is a messy conversion artifact from the C code
+        # Is it legal to have a 0 length bulk in?
+        data_size = 0
+        # instead, use the recieved buffer size as a best estimated
+        max_payload_sz = len(dat_cur)
+        if max_payload_sz:
+            data_size = max_payload_sz
+
+        self.output_packet({
+            'type': 'interruptWrite',
+            'endp': self.submit.m_urb.endpoint,
+            'len': data_size,
+            'data': bytes2Hex(dat_cur)
+        })
+
+    def processInterruptCompleteIn(self, dat_cur):
+        # looks like maybe windows doesn't report the request size?
+        # think this is always 0
+        assert self.submit.m_urb.data_length == 0
+
+        # FIXME: this is a messy conversion artifact from the C code
+        # Is it legal to have a 0 length bulk in?
+        data_size = 0
+        # instead, use the recieved buffer size as a best estimated
+        max_payload_sz = len(dat_cur)
+        if max_payload_sz:
+            data_size = max_payload_sz
+
+        # output below
+        self.output_packet({
+            'type': 'interruptRead',
+            'endp': self.submit.m_urb.endpoint,
+            'len': data_size,
+            'data': bytes2Hex(dat_cur)
+        })
 
     def processBulkCompleteOut(self, dat_cur):
-        data_size = 0
-
         self.output_packet({
             'type': 'bulkWrite',
             'endp': self.submit.m_urb.endpoint,
             'data': bytes2Hex(self.submit.m_data_out)
         })
-
-    def processBulkComplete(self, dat_cur):
-        if self.urb.endpoint & URB_TRANSFER_IN:
-            g_payload_bytes.bulk.in_ += self.urb.data_length
-            self.processBulkCompleteIn(dat_cur)
-        else:
-            g_payload_bytes.bulk.out += self.urb.data_length
-            self.processBulkCompleteOut(dat_cur)
 
     def loop_cb_devmax(self, caplen, packet, ts):
         self.cur_packn += 1
