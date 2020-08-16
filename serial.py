@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from usbrply.printer import Printer, indented, indent_inc, indent_dec
 from usbrply.pyprinter import bytes2AnonArray
