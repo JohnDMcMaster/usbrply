@@ -1,3 +1,9 @@
+#!/usr/bin/env python3
+"""
+Example showing how to selectively translate parts of a USB packet capture into higher level functionality
+When something isn't recognized it prints using default usbrply decoding
+"""
+
 import json
 import subprocess
 
@@ -23,10 +29,6 @@ class Scraper:
 
     def run(self, j):
         self.pyprint.header()
-
-        # Last wire command (ie non-comment)
-        # Used to optionally generate timing
-        self.prevd = None
 
         for d in j["data"]:
             self.parse_data(d)
