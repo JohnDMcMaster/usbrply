@@ -274,6 +274,9 @@ class Gen(PcapGen):
         # Main packet filtering
         # Drop if not specified device
         if self.arg_device is not None and self.urb.device != self.arg_device:
+            if self.verbose:
+                print('packet %s: want device %s, got %s' %
+                      (self.pktn_str(), self.arg_device, self.urb.device))
             return
         self.rel_pkt += 1
 
@@ -291,7 +294,7 @@ class Gen(PcapGen):
                 print('Pending completes (%d):' %
                       (len(self.pending_complete), ))
                 for k in self.pending_complete:
-                    print('  %s' % (k, ))
+                    print('  0x%016lX' % (k, ))
             # for some reason usbmon will occasionally give packets out of order
             if not self.urb.id in self.pending_complete:
                 self.gwarning("Packet %s missing submit.  URB ID: 0x%016lX" %
@@ -355,6 +358,10 @@ class Gen(PcapGen):
                 self.processBulkComplete(dat_cur)
             elif self.urb.transfer_type == URB_INTERRUPT:
                 self.processInterruptComplete(dat_cur)
+            else:
+                if self.verbose:
+                    print("WARNING: unhandled transfer type %s" %
+                          (self.urb.transfer_type == URB_INTERRUPT, ))
 
         if self.urb.id in self.pending_complete:
             del self.pending_complete[self.urb.id]

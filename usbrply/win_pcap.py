@@ -491,7 +491,8 @@ class Gen(PcapGen):
             else:
                 self.processInterruptCompleteOut(dat_cur)
         else:
-            self.verbose and print("WARNING: unknown transfer type %u" % self.urb.transfer_type)
+            self.verbose and print(
+                "WARNING: unknown transfer type %u" % self.urb.transfer_type)
 
     def processControlSubmit(self, dat_cur):
         pending = PendingRX()

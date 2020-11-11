@@ -65,6 +65,9 @@ class PcapGen(object):
             if not parser.next(self.loop_cb):
                 break
 
+            if self.verbose:
+                print("gen_data: %s new JSON entries" % (len(self.jbuff), ))
+
             # Pop packets
             for data in self.jbuff:
                 if 0:

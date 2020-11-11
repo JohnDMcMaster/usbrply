@@ -3,8 +3,9 @@ import binascii
 
 
 class Commenter(object):
-    def __init__(self, argsj):
+    def __init__(self, argsj, verbose=False):
         self.fx2 = argsj.get("fx2", False)
+        self.verbose = verbose
 
     # FX2 regs: http://www.keil.com/dd/docs/datashts/cypress/fx2_trm.pdf
     # FX2LP regs: http://www.cypress.com/file/126446/download

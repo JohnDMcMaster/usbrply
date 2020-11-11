@@ -36,6 +36,7 @@ def jgen2j(jgen):
     # Convert generator into static JSON
     j = {}
     for k, v in jgen:
+        # Convert nested generator to list
         if k == "data":
             v = list(v)
         j[k] = v

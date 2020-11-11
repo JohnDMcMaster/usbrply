@@ -50,7 +50,9 @@ class TestCase(unittest.TestCase):
 
     def test_win_interrupt(self):
         usbrply.printers.run(
-            "json", usbrply.parsers.pcap2json("test/data/win_interrupt.pcapng"))
+            "json",
+            usbrply.parsers.pcap2json("test/data/win_interrupt.pcapng"))
+
 
 if __name__ == "__main__":
     unittest.main()  # run all tests

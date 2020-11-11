@@ -26,7 +26,8 @@ def main():
                         action='store_const',
                         const='libusb-py',
                         help='output libusb python')
-    parser.add_argument('-j',
+    parser.add_argument("--json",
+                        '-j',
                         dest='ofmt',
                         action='store_const',
                         const='json',
@@ -116,7 +117,10 @@ def main():
         filters.append("setup")
     if args.comment or args.fx2:
         filters.append("commenter")
-    filtered = usbrply.filters.run(filters, parsed, argsj)
+    filtered = usbrply.filters.run(filters,
+                                   parsed,
+                                   argsj,
+                                   verbose=args.verbose)
     usbrply.printers.run(args.ofmt, filtered, argsj=argsj)
 
 
