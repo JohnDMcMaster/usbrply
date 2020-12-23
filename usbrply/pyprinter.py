@@ -75,14 +75,14 @@ def validate_read(expected, actual, msg):
     def bulkWrite(endpoint, data, timeout=None):
         dev.bulkWrite(endpoint, data, timeout=(1000 if timeout is None else timeout))
     
-    def controlRead(request_type, request, value, index, length,
+    def controlRead(bRequestType, bRequest, wValue, wIndex, wLength,
                     timeout=None):
-        return dev.controlRead(request_type, request, value, index, length,
+        return dev.controlRead(bRequestType, bRequest, wValue, wIndex, wLength,
                     timeout=(1000 if timeout is None else timeout))
 
-    def controlWrite(request_type, request, value, index, data,
+    def controlWrite(bRequestType, bRequest, wValue, wIndex, data,
                      timeout=None):
-        dev.controlWrite(request_type, request, value, index, data,
+        dev.controlWrite(bRequestType, bRequest, wValue, wIndex, data,
                      timeout=(1000 if timeout is None else timeout))
 
     def interruptRead(endpoint, size, timeout=None):
@@ -118,8 +118,8 @@ def open_dev(usbcontext=None):
         vid = udev.getVendorID()
         pid = udev.getProductID()
         if (vid, pid) == (''' + "0x%04X, 0x%04X" % (self.vid, self.pid) + '''):
-            print()
-            print()
+            print("")
+            print("")
             print('Found device')
             print('Bus %03i Device %03i: ID %04x:%04x' % (
                 udev.getBusNumber(),

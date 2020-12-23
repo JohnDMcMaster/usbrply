@@ -61,7 +61,7 @@ def main():
                         help='Only keep packets for given device')
     add_bool_arg(parser,
                  '--device-hi',
-                 default=True,
+                 default=None,
                  help='Auto detect to highest device number')
     add_bool_arg(parser,
                  '--rel-pkt',
@@ -92,6 +92,9 @@ def main():
     args = parser.parse_args()
 
     argsj = args.__dict__
+
+    if argsj["device"] is None:
+        argsj["device-hi"] = True
 
     #argsj['vid'] = int(args.vid, 0)
     #argsj['pid'] = int(args.pid, 0)

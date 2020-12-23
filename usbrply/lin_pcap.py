@@ -319,7 +319,7 @@ class Gen(PcapGen):
                 self.pending_complete[self.urb.id] = pending
 
         # Should have either generated no comments or attached them
-        assert len(self.pcomments) == 0
+        assert len(self.pcomments) == 0, ("unhandled comment", self.pcomments)
         self.submit = None
         self.urb = None
 

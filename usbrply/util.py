@@ -1,4 +1,6 @@
 import sys
+import subprocess
+import json
 
 
 def hexdump(data, label=None, indent='', address_width=8, f=sys.stdout):
@@ -85,3 +87,17 @@ def tostr(buff):
         return ''.join([chr(b) for b in buff])
     else:
         assert 0, type(buff)
+
+
+# Used by scraper scripts
+# Due to python2 vs python3 issue, its better to subprocess this
+def load_pcap_json(fin, usbrply_args=""):
+    if fin.find('.cap') >= 0 or fin.find('.pcapng') >= 0:
+        json_fn = '/tmp/scrape.json'
+        cmd = 'usbrply %s  --json %s >%s' % (usbrply_args, fin, json_fn)
+        subprocess.check_call(cmd, shell=True)
+    else:
+        json_fn = fin
+
+    j = json.load(open(json_fn))
+    return j, json_fn
