@@ -1,27 +1,33 @@
 import sys
 from .pcap_util import PcapParser, load_pcap
 
+def default_arg(argsj, k, default):
+    val = argsj.get(k)
+    if val is None:
+        return default
+    else:
+        return val
 
 class PcapGen(object):
     def __init__(self, argsj):
-        self.verbose = argsj.get("verbose", False)
+        self.verbose = default_arg(argsj, "verbose", False)
         # JSON data objects buffered for next yield
         self.jbuff = None
         self.pcomments = None
-        self.min_packet = argsj.get("min_packet", 0)
-        self.max_packet = argsj.get("max_packet", float('inf'))
+        self.min_packet = default_arg(argsj, "min_packet", 0)
+        self.max_packet = default_arg(argsj, "max_packet", float('inf'))
 
         # XXX: don't think this is actually used, verify
-        self.arg_fx2 = argsj.get("fx2", False)
-        self.arg_device = argsj.get("device", None)
-        self.arg_device_hi = argsj.get("device_hi", True)
-        self.arg_setup = argsj.get("setup", False)
-        self.arg_halt = argsj.get("halt", True)
-        self.arg_remoteio = argsj.get("remoteio", False)
-        self.arg_rel_pkt = argsj.get("rel_pkt", False)
-        self.arg_print_short = argsj.get("print_short", False)
-        self.arg_comment = argsj.get("comment", False)
-        self.arg_packet_numbers = argsj.get("packet_numbers", True)
+        self.arg_fx2 = default_arg(argsj, "fx2", False)
+        self.arg_device = default_arg(argsj, "device", None)
+        self.arg_device_hi = default_arg(argsj, "device_hi", self.arg_device is None)
+        self.arg_setup = default_arg(argsj, "setup", False)
+        self.arg_halt = default_arg(argsj, "halt", True)
+        self.arg_remoteio = default_arg(argsj, "remoteio", False)
+        self.arg_rel_pkt = default_arg(argsj, "rel_pkt", False)
+        self.arg_print_short = default_arg(argsj, "print_short", False)
+        self.arg_comment = default_arg(argsj, "comment", False)
+        self.arg_packet_numbers = default_arg(argsj, "packet_numbers", True)
 
         # Either auto selected or user selected by now
         self.use_pcapng = "pcapng" in argsj["parser"]
