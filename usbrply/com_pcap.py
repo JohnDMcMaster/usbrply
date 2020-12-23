@@ -1,12 +1,14 @@
 import sys
 from .pcap_util import PcapParser, load_pcap
 
+
 def default_arg(argsj, k, default):
     val = argsj.get(k)
     if val is None:
         return default
     else:
         return val
+
 
 class PcapGen(object):
     def __init__(self, argsj):
@@ -16,11 +18,13 @@ class PcapGen(object):
         self.pcomments = None
         self.min_packet = default_arg(argsj, "min_packet", 0)
         self.max_packet = default_arg(argsj, "max_packet", float('inf'))
+        self.cur_packn = None
 
         # XXX: don't think this is actually used, verify
         self.arg_fx2 = default_arg(argsj, "fx2", False)
         self.arg_device = default_arg(argsj, "device", None)
-        self.arg_device_hi = default_arg(argsj, "device_hi", self.arg_device is None)
+        self.arg_device_hi = default_arg(argsj, "device_hi",
+                                         self.arg_device is None)
         self.arg_setup = default_arg(argsj, "setup", False)
         self.arg_halt = default_arg(argsj, "halt", True)
         self.arg_remoteio = default_arg(argsj, "remoteio", False)

@@ -331,6 +331,23 @@ class Gen(PcapGen):
         return "windows"
 
     def loop_cb(self, caplen, packet, ts):
+        """
+        2020-12-22
+        Looks like there are two different structures
+        Example observed on controlWrite
+
+        Type 1
+        Packet1: out FDO -> PDO
+        Packet2: out PDO -> FDO
+
+        Type 2
+        Packet1: out FDO -> PDO
+        Packet2: out FDO -> PDO
+        Packet3: status PDO -> FDO
+
+        Not sure exactly what this is (different windows version?)
+        But lets make sure to handle both types
+        """
         try:
             packet = bytearray(packet)
             self.cur_packn += 1
@@ -347,14 +364,16 @@ class Gen(PcapGen):
                 print('WIN PACKET %s' % (self.cur_packn, ))
 
             if caplen != len(packet):
-                print("packet %s: malformed, caplen %d != len %d",
-                      self.pktn_str(), caplen, len(packet))
+                self.gwarning("packet %s: malformed, caplen %d != len %d",
+                              self.pktn_str(), caplen, len(packet))
                 return
             if self.verbose:
                 # print('Len: %d' % len(packet))
                 hexdump(packet)
                 #print(ts)
-                print('Pending: %d' % len(self.pending_complete))
+                print('Pending (%d):' % (len(self.pending_complete), ))
+                for k in self.pending_complete:
+                    print('  %s' % (urb_id_str(k), ))
 
             self.printv("Length %u" % (len(packet), ))
             if len(packet) < usb_urb_sz:
@@ -383,25 +402,27 @@ class Gen(PcapGen):
             if self.arg_device is not None and self.urb.device != self.arg_device:
                 self.printv("Drop: device mismatch")
                 return
-
-            # FIXME: hack to only process control for now
-            if 0 and self.urb.transfer_type != URB_CONTROL:
-                self.gwarning('packet %s: drop packet type %s' %
-                              (self.pktn_str(),
-                               transfer2str_safe(self.urb.transfer_type)))
-                return
-
-            # Drop status packets
+            '''
+            # Status package may contain complete
+            # But it looks like any
             if self.urb.transfer_type == URB_CONTROL:
                 # Control transfer stage
                 # 1: data
                 # 2: status
                 # 'xfer_stage',
                 xfer_stage = dat_cur[0]
+                """
                 #print('xfer_stage: %d' % xfer_stage)
                 if xfer_stage == XFER_STATUS:
-                    self.printv('drop xfer_status')
-                    return
+                    if not self.urb.id in self.pending_complete:
+                        if self.urb.transfer_type != URB_INTERRUPT:
+                            self.gwarning(
+                                "Packet %s missing submit.  URB ID: 0x%016lX" %
+                                (self.pktn_str(), self.urb.id))
+                    else:
+                        self.process_complete(dat_cur)
+                """
+            '''
 
             self.rel_pkt += 1
 
@@ -416,12 +437,8 @@ class Gen(PcapGen):
                     sys.exit(1)
 
             # Complete?
+            # May be "out" or "status"
             if self.urb.irp_info & 1 == INFO_PDO2FDO:
-                if self.verbose:
-                    print('Pending (%d):' % (len(self.pending_complete), ))
-                    for k in self.pending_complete:
-                        print('  %s' % (urb_id_str(k), ))
-                # for some reason usbmon will occasionally give packets out of order
                 if not self.urb.id in self.pending_complete:
                     if self.urb.transfer_type != URB_INTERRUPT:
                         self.gwarning(
