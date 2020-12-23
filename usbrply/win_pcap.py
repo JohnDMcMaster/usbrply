@@ -423,9 +423,10 @@ class Gen(PcapGen):
                         print('  %s' % (urb_id_str(k), ))
                 # for some reason usbmon will occasionally give packets out of order
                 if not self.urb.id in self.pending_complete:
-                    self.gwarning(
-                        "Packet %s missing submit.  URB ID: 0x%016lX" %
-                        (self.pktn_str(), self.urb.id))
+                    if self.urb.transfer_type != URB_INTERRUPT:
+                        self.gwarning(
+                            "Packet %s missing submit.  URB ID: 0x%016lX" %
+                            (self.pktn_str(), self.urb.id))
                 else:
                     self.process_complete(dat_cur)
             # Oterhwise submit
