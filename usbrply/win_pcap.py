@@ -699,7 +699,7 @@ class Gen(PcapGen):
         # FIXME: this is a messy conversion artifact from the C code
         # Is it legal to have a 0 length bulk in?
         data_size = 0
-        # instead, use the recieved buffer size as a best estimated
+        # instead, use the recieved buffer size as a best estimate
         max_payload_sz = len(dat_cur)
         if max_payload_sz:
             data_size = max_payload_sz
@@ -719,7 +719,7 @@ class Gen(PcapGen):
         # FIXME: this is a messy conversion artifact from the C code
         # Is it legal to have a 0 length bulk in?
         data_size = 0
-        # instead, use the recieved buffer size as a best estimated
+        # instead, use the recieved buffer size as a best estimate
         max_payload_sz = len(dat_cur)
         if max_payload_sz:
             data_size = max_payload_sz

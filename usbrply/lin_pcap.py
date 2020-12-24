@@ -42,15 +42,6 @@ class payload_bytes_type_t:
         self.out_last = None
 
 
-class payload_bytes_t:
-    def __init__(self):
-        self.ctrl = payload_bytes_type_t()
-        self.bulk = payload_bytes_type_t()
-
-
-g_payload_bytes = payload_bytes_t()
-
-
 def update_delta(pb):
     pb.req_in_last = pb.req_in
     pb.in_last = pb.in_
@@ -353,11 +344,20 @@ class Gen(PcapGen):
 
             # Find the matching submit request
             if self.urb.transfer_type == URB_CONTROL:
-                self.processControlComplete(dat_cur)
+                if self.submit.m_ctrl.bRequestType & URB_TRANSFER_IN:
+                    self.processControlCompleteIn(dat_cur)
+                else:
+                    self.processControlCompleteOut(dat_cur)
             elif self.urb.transfer_type == URB_BULK:
-                self.processBulkComplete(dat_cur)
+                if self.urb.endpoint & USB_DIR_IN:
+                    self.processBulkCompleteIn(dat_cur)
+                else:
+                    self.processBulkCompleteOut(dat_cur)
             elif self.urb.transfer_type == URB_INTERRUPT:
-                self.processInterruptComplete(dat_cur)
+                if self.urb.endpoint & URB_TRANSFER_IN:
+                    self.processInterruptCompleteIn(dat_cur)
+                else:
+                    self.processInterruptCompleteOut(dat_cur)
             else:
                 if self.verbose:
                     print("WARNING: unhandled transfer type %s" %
@@ -464,12 +464,6 @@ class Gen(PcapGen):
             'data': bytes2Hex(self.submit.m_data_out)
         })
 
-    def processControlComplete(self, dat_cur):
-        if self.submit.m_ctrl.bRequestType & URB_TRANSFER_IN:
-            self.processControlCompleteIn(dat_cur)
-        else:
-            self.processControlCompleteOut(dat_cur)
-
     def output_packet(self, j):
         urbj_submit = urb2json(self.submit.m_urb)
         urbj_complete = urb2json(self.urb)
@@ -490,11 +484,6 @@ class Gen(PcapGen):
         self.pcomments = []
 
     def processBulkSubmit(self, dat_cur):
-        if self.urb.type & USB_DIR_IN:
-            g_payload_bytes.bulk.req_in += self.urb.length
-        else:
-            g_payload_bytes.bulk.req_out += self.urb.length
-
         pending = PendingRX()
         pending.raw = self.urb_raw
         pending.m_urb = self.urb
@@ -567,13 +556,43 @@ class Gen(PcapGen):
             'data': bytes2Hex(self.submit.m_data_out)
         })
 
-    def processBulkComplete(self, dat_cur):
-        if self.urb.endpoint & USB_DIR_IN:
-            g_payload_bytes.bulk.in_ += self.urb.data_length
-            self.processBulkCompleteIn(dat_cur)
-        else:
-            g_payload_bytes.bulk.out += self.urb.data_length
-            self.processBulkCompleteOut(dat_cur)
+    def processInterruptCompleteOut(self, dat_cur):
+        # looks like maybe windows doesn't report the request size?
+        # think this is always 0
+        # assert self.submit.m_urb.length == 0
 
-    def processInterruptComplete(self, dat_cur):
-        self.gwarning('omitting interrupt')
+        # FIXME: this is a messy conversion artifact from the C code
+        # Is it legal to have a 0 length bulk in?
+        data_size = 0
+        # instead, use the recieved buffer size as a best estimate
+        max_payload_sz = len(dat_cur)
+        if max_payload_sz:
+            data_size = max_payload_sz
+
+        self.output_packet({
+            'type': 'interruptWrite',
+            'endp': self.submit.m_urb.endpoint,
+            'len': data_size,
+            'data': bytes2Hex(dat_cur)
+        })
+
+    def processInterruptCompleteIn(self, dat_cur):
+        # looks like maybe windows doesn't report the request size?
+        # think this is always 0
+        # assert self.submit.m_urb.length == 0
+
+        # FIXME: this is a messy conversion artifact from the C code
+        # Is it legal to have a 0 length bulk in?
+        data_size = 0
+        # instead, use the recieved buffer size as a best estimate
+        max_payload_sz = len(dat_cur)
+        if max_payload_sz:
+            data_size = max_payload_sz
+
+        # output below
+        self.output_packet({
+            'type': 'interruptRead',
+            'endp': self.submit.m_urb.endpoint,
+            'len': data_size,
+            'data': bytes2Hex(dat_cur)
+        })
