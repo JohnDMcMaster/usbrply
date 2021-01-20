@@ -23,6 +23,7 @@ class PcapGen(object):
         # XXX: don't think this is actually used, verify
         self.arg_fx2 = default_arg(argsj, "fx2", False)
         self.arg_device = default_arg(argsj, "device", None)
+        # Default to device-hi if no other filtering is specified
         self.arg_device_hi = default_arg(
             argsj, "device_hi", self.arg_device is None
             and not argsj.get("vid") and not argsj.get("pid"))
@@ -110,7 +111,7 @@ class PcapGen(object):
         assert 0, "required"
 
     def run(self):
-        yield 'parser', "lin-pcap"
+        yield 'parser', self.parser()
         yield 'platform', self.platform()
         yield "fn", self.arg_fin
         yield 'args', sys.argv

@@ -203,6 +203,9 @@ class Gen(PcapGen):
     def comment_source(self):
         self.gcomment('Source: Linux pcap (usbmon)')
 
+    def parser(self):
+        return "lin-pcap"
+
     def platform(self):
         return "linux"
 

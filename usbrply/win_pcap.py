@@ -327,6 +327,9 @@ class Gen(PcapGen):
     def comment_source(self):
         self.gcomment('Source: Windows pcap (USBPcap)')
 
+    def parser(self):
+        return "win-pcap"
+
     def platform(self):
         return "windows"
 
