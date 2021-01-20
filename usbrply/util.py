@@ -3,6 +3,12 @@ import subprocess
 import json
 
 
+def clear_screen():
+    # 00000000  1b 5b 33 3b 4a 1b 5b 48  1b 5b 32 4a              |.[3;J.[H.[2J|
+    sys.stdout.write("\x1b\x5b\x33\x3b\x4a\x1b\x5b\x48\x1b\x5b\x32\x4a")
+    sys.stdout.flush()
+
+
 def hexdump(data, label=None, indent='', address_width=8, f=sys.stdout):
     def isprint(c):
         return c >= ' ' and c <= '~'
@@ -41,7 +47,7 @@ def hexdump(data, label=None, indent='', address_width=8, f=sys.stdout):
 
         f.write(''.join([
             c if isprint(c) else '.'
-            for c in str(data[row_start:row_start + real_data])
+            for c in tostr(data[row_start:row_start + real_data])
         ]))
         f.write((" " * (bytes_per_row - real_data)) + "|\n")
 

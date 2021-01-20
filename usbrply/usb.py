@@ -36,7 +36,7 @@ USB_REQ_SYNCH_FRAME = 0x0C
 USB_DIR_OUT = 0  # to device
 USB_DIR_IN = 0x80  # to host
 
-USB_TYPE_MASK = (0x03 << 5)
+USB_TYPE_MASK = (0x03 << 5)  # 0x60
 USB_TYPE_STANDARD = (0x00 << 5)  # 0x00
 USB_TYPE_CLASS = (0x01 << 5)  # 0x20
 USB_TYPE_VENDOR = (0x02 << 5)  # 0x40
@@ -81,12 +81,15 @@ def req2s(bRequestType, bRequest, vendor=None):
             USB_REQ_SET_FEATURE: "SET_FEATURE",
             USB_REQ_GET_INTERFACE: "GET_INTERFACE",
         },
-        USB_TYPE_VENDOR: {
-            USB_REQ_GET_STATUS: "GET_STATUS",
-            USB_REQ_SET_FEATURE: "SET_FEATURE",
-            USB_REQ_CLEAR_FEATURE: "CLEAR_FEATURE",
-            USB_REQ_SYNCH_FRAME: "SYNCH_FRAME",
-        },
+        # 2020-12-29: these are interfering with a device
+        # Leave these out for now, try to figure out why they were added
+        # and more concretely document
+        # USB_TYPE_VENDOR: {
+        #    USB_REQ_GET_STATUS: "GET_STATUS",
+        #    USB_REQ_SET_FEATURE: "SET_FEATURE",
+        #    USB_REQ_CLEAR_FEATURE: "CLEAR_FEATURE",
+        #    USB_REQ_SYNCH_FRAME: "SYNCH_FRAME",
+        #},
     }
     if vendor:
         m[USB_TYPE_VENDOR].update(vendor)

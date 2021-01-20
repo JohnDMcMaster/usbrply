@@ -8,6 +8,21 @@ indent = ""
 print_file = sys.stdout
 
 
+def default_print_file(fname, cap_file):
+    global print_file
+    """
+    Given argument for explicit file name and a cap file,
+    default to the file name, otherwise munge cap file into .py version
+    """
+    if not fname:
+        fname = cap_file.replace('.pcapng',
+                                 '.py').replace('.pcap',
+                                                '.py').replace('.cap', '.py')
+
+    assert fname != cap_file, (fname, cap_file)
+    print_file = open(fname, "w")
+
+
 def indent_inc():
     global indent
 

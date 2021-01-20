@@ -23,8 +23,10 @@ class PcapGen(object):
         # XXX: don't think this is actually used, verify
         self.arg_fx2 = default_arg(argsj, "fx2", False)
         self.arg_device = default_arg(argsj, "device", None)
-        self.arg_device_hi = default_arg(argsj, "device_hi",
-                                         self.arg_device is None)
+        self.arg_device_hi = default_arg(
+            argsj, "device_hi", self.arg_device is None
+            and not argsj.get("vid") and not argsj.get("pid"))
+        self.dev_drops = 0
         self.arg_setup = default_arg(argsj, "setup", False)
         self.arg_halt = default_arg(argsj, "halt", True)
         self.arg_remoteio = default_arg(argsj, "remoteio", False)
@@ -71,7 +73,9 @@ class PcapGen(object):
 
     def gen_data(self):
         parser = PcapParser(self.arg_fin, use_pcapng=self.use_pcapng)
+        npackets = 0
         while True:
+            npackets += 1
             if not parser.next(self.loop_cb):
                 break
 
@@ -92,6 +96,10 @@ class PcapGen(object):
                           (len(self.pending_complete)))
         # if len(self.pending_submit) != 0:
         #    self.gwarning("%lu pending submit requests" % (len(self.pending_submit)))
+
+        self.gcomment("PcapGen: generated %u packets" % npackets)
+        self.gcomment("PcapGen device filter: dropped %u / %u packets" %
+                      (self.dev_drops, npackets))
 
         # Pop epilogue packets
         for p in self.jbuff:
@@ -120,7 +128,8 @@ class PcapGen(object):
             load_pcap(self.arg_fin,
                       self.loop_cb_devmax,
                       use_pcapng=self.use_pcapng)
-            self.gcomment('Selected device %u' % self.arg_device)
+            self.gcomment('PCapGen device hi: selected device %u' %
+                          self.arg_device)
             self.cur_packn = 0
 
         self.printv("parsing from range %s to %s" %

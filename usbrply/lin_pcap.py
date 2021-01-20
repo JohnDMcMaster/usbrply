@@ -268,6 +268,7 @@ class Gen(PcapGen):
             if self.verbose:
                 print('packet %s: want device %s, got %s' %
                       (self.pktn_str(), self.arg_device, self.urb.device))
+            self.dev_drops += 1
             return
         self.rel_pkt += 1
 
@@ -473,6 +474,7 @@ class Gen(PcapGen):
             'urb': urbj_submit,
             't': urbj_submit["t"],
         }
+        j["device"] = j["submit"]["urb"]["device"]
         j["complete"] = {
             'packn': ncomplete,
             'urb': urbj_complete,

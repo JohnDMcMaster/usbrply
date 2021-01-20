@@ -401,6 +401,7 @@ class Gen(PcapGen):
             #print(self.pktn_str(), self.urb.device, args.device)
             if self.arg_device is not None and self.urb.device != self.arg_device:
                 self.printv("Drop: device mismatch")
+                self.dev_drops += 1
                 return
             '''
             # Status package may contain complete

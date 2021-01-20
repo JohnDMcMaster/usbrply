@@ -55,6 +55,14 @@ def main():
                  default=False,
                  help='Use defines instead of raw numbers')
     add_bool_arg(parser, '--halt', default=True, help='Halt on errors')
+    parser.add_argument('--vid',
+                        type=str,
+                        default="0",
+                        help='Only keep packets for given VID')
+    parser.add_argument('--pid',
+                        type=str,
+                        default="0",
+                        help='Only keep packets for given PID')
     parser.add_argument('--device',
                         type=int,
                         default=None,
@@ -86,8 +94,6 @@ def main():
                  '--wrapper',
                  default=False,
                  help='Emit code to make it a full executable program')
-    #parser.add_argument('--vid', default='0')
-    #parser.add_argument('--pid', default='0')
     parser.add_argument('fin', help='File name in')
     args = parser.parse_args()
 
@@ -96,8 +102,8 @@ def main():
     if argsj["device"] is None:
         argsj["device-hi"] = True
 
-    #argsj['vid'] = int(args.vid, 0)
-    #argsj['pid'] = int(args.pid, 0)
+    argsj['vid'] = int(args.vid, 0)
+    argsj['pid'] = int(args.pid, 0)
 
     if args.range:
         (min_packet, max_packet) = args.range.split(':')
@@ -116,6 +122,8 @@ def main():
 
     parsed = usbrply.parsers.pcap2json(args.fin, argsj)
     filters = []
+    if args.pid or args.vid:
+        filters.append("vidpid")
     if not args.setup:
         filters.append("setup")
     if args.comment or args.fx2:

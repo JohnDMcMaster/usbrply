@@ -144,6 +144,14 @@ if __name__ == "__main__":
 ''',
               file=printer.print_file)
 
+    def packet_number_str(self, d):
+        if self.packet_numbers:
+            return "packet %s/%s" % (d["submit"]["packn"],
+                                     d["complete"]["packn"])
+        else:
+            # TODO: consider counting instead of by captured index
+            return "packet"
+
     def parse_data(self, d):
         # print(d)
         if self.sleep and self.prevd and d["type"] != "comment":
@@ -154,18 +162,11 @@ if __name__ == "__main__":
             if dt >= 0.001:
                 indented('time.sleep(%.3f)' % (dt, ))
 
-        packet_numbering = ''
-
         if d["type"] == "comment":
             comment(d["v"])
             return
 
-        if self.packet_numbers:
-            packet_numbering = "packet %s/%s" % (d["submit"]["packn"],
-                                                 d["complete"]["packn"])
-        else:
-            # TODO: consider counting instead of by captured index
-            packet_numbering = "packet"
+        packet_numbering = self.packet_number_str(d)
 
         if "comments" in d:
             for c in d["comments"]:
