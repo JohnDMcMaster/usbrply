@@ -25,12 +25,15 @@ class VidpidFilter(object):
         self.keep_device = None
 
     def should_filter(self, data):
-        return False
-
+        comments = []
         if self.arg_vid is None and self.arg_pid is None:
-            return False
+            return False, comments
 
         device = data.get('device')
+        # Comment / metadata
+        if device is None:
+            return False, comments
+
         # a new vid/pid mapping?
         # if data["type"] == "controlRead" and req2s(data["bRequestType"], data["bRequest"]) == "GET_DESCRIPTOR" and data["bDescriptorType"] == 0x01:
         # FIXME: hack
@@ -38,32 +41,46 @@ class VidpidFilter(object):
         if data["type"] == "controlRead" and req2s(
                 data["bRequestType"],
                 data["bRequest"]) == "GET_DESCRIPTOR" and len(buff) == 0x12:
-            print(data)
             # not actually decoded
-            print("buf", len(buff))
-            hexdump(buff)
             # TODO: parse this more genericly
             vid, pid = struct.unpack("<HH", buff[0x08:0x0C])
-            print("VID PID 0x%04X 0x%04X" % (vid, pid))
+            # print("VID PID 0x%04X 0x%04X" % (vid, pid))
             self.device2vidpid[device] = (vid, pid)
             if (vid == self.arg_vid
                     or self.arg_vid is None) or (pid == self.arg_pid
                                                  or self.arg_pid is None):
-                print("hit")
-                if self.keep_device is not None:
-                    print("WARNING: already had device")
-                self.keep_device = device
-            return False
+                # Note: may appear multiple times
+                # First during device 0 enumeration, then once assigned on bus
+                # Keep the second one
+                if device:
+                    if self.keep_device is None:
+                        comments.append(self.comment("VidpidFilter: match device %u w/ 0x%04X:0x%04X" % (device, vid, pid)))
+                    elif self.keep_device != device:
+                        comments.append(self.comment("WARNING VidpidFilter: already had different device"))
+                    self.keep_device = device
+            return False, comments
+
 
         # Filter:
         # Devices not matching target
         # Anything before we've established mapping. Most of this traffic isn't important and simplifies parser
-        return device is not None and device == self.keep_device
+        # print(self.keep_device, device)
+        return self.keep_device is None or device != self.keep_device, comments
+
+    def comment(self, s):
+        return {
+            "type":
+            "comment",
+            "v": s,
+        }
 
     def gen_data(self, datas):
         for data in datas:
             self.entries += 1
-            if self.should_filter(data):
+            should_filter, yields = self.should_filter(data)
+            for y in yields:
+                yield y
+            if should_filter:
                 if self.verbose:
                     print("VidpidFilter drop %s (%s %s %s)" %
                           (data['type'],
@@ -72,13 +89,8 @@ class VidpidFilter(object):
                 self.drops += 1
                 continue
             yield data
-        yield {
-            "type":
-            "comment",
-            "v":
-            "VidpidFilter: dropped %s / %s entries" %
-            (self.drops, self.entries)
-        }
+        yield self.comment("VidpidFilter: dropped %s / %s entries" %
+            (self.drops, self.entries))
 
     def run(self, jgen):
         for k, v in jgen:

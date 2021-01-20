@@ -292,8 +292,10 @@ class Gen(PcapGen):
                     print('  0x%016lX' % (k, ))
             # for some reason usbmon will occasionally give packets out of order
             if not self.urb.id in self.pending_complete:
-                self.gwarning("Packet %s missing submit.  URB ID: 0x%016lX" %
-                              (self.pktn_str(), self.urb.id))
+                # Interrupts can generate these
+                if self.verbose:
+                    self.gwarning("Packet %s missing submit.  URB ID: 0x%016lX" %
+                                  (self.pktn_str(), self.urb.id))
             else:
                 self.process_complete(self.pending_complete[self.urb.id],
                                       self.urb, dat_cur)
@@ -341,10 +343,12 @@ class Gen(PcapGen):
             EREMOTEIO = -121
             if self.urb.status != 0 and not (not self.arg_remoteio
                                              and self.urb.status == EREMOTEIO):
-                self.gwarning(
-                    'complete code %s (%s)' %
-                    (self.urb.status,
-                     errno.errorcode.get(-self.urb.status, "unknown")))
+                # Interrupts can generate these
+                if self.verbose:
+                    self.gwarning(
+                        'Packet %s complete code %s (%s)' %
+                        (self.submit.packet_number, self.urb.status,
+                         errno.errorcode.get(-self.urb.status, "unknown")))
 
             # Find the matching submit request
             if self.urb.transfer_type == URB_CONTROL:

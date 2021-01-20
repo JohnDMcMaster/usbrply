@@ -15,7 +15,7 @@ if not os.path.exists('build'):
     os.mkdir('build')
 scripts = (
     ('main.py', 'usbrply'),
-    ('serial.py', 'usbrply-serial'),
+    #('serial.py', 'usbrply-serial'),
 )
 scripts_dist = []
 for src_fn, prog_name in scripts:
