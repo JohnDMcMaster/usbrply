@@ -39,6 +39,7 @@ def printControlRequest(submit, data_str, data_size, pipe_str):
 class LibusbPyPrinter(Printer):
     def __init__(self, argsj, verbose=False):
         Printer.__init__(self, argsj)
+        self.prevd = None
         self.wrapper = argsj.get("wrapper", False)
         self.sleep = argsj.get("sleep", False)
         self.packet_numbers = argsj.get("packet_numbers", True)

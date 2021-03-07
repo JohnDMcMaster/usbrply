@@ -13,10 +13,9 @@ def read(fname):
 
 if not os.path.exists('build'):
     os.mkdir('build')
-scripts = (
-    ('main.py', 'usbrply'),
-    #('serial.py', 'usbrply-serial'),
-)
+scripts = (('main.py', 'usbrply'),
+           #('serial.py', 'usbrply-serial'),
+           )
 scripts_dist = []
 for src_fn, prog_name in scripts:
     # Make script names more executable like

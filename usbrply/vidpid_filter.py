@@ -54,12 +54,17 @@ class VidpidFilter(object):
                 # Keep the second one
                 if device:
                     if self.keep_device is None:
-                        comments.append(self.comment("VidpidFilter: match device %u w/ 0x%04X:0x%04X" % (device, vid, pid)))
+                        comments.append(
+                            self.comment(
+                                "VidpidFilter: match device %u w/ 0x%04X:0x%04X"
+                                % (device, vid, pid)))
                     elif self.keep_device != device:
-                        comments.append(self.comment("WARNING VidpidFilter: already had different device"))
+                        comments.append(
+                            self.comment(
+                                "WARNING VidpidFilter: already had different device"
+                            ))
                     self.keep_device = device
             return False, comments
-
 
         # Filter:
         # Devices not matching target
@@ -69,8 +74,7 @@ class VidpidFilter(object):
 
     def comment(self, s):
         return {
-            "type":
-            "comment",
+            "type": "comment",
             "v": s,
         }
 
@@ -90,7 +94,7 @@ class VidpidFilter(object):
                 continue
             yield data
         yield self.comment("VidpidFilter: dropped %s / %s entries" %
-            (self.drops, self.entries))
+                           (self.drops, self.entries))
 
     def run(self, jgen):
         for k, v in jgen:

@@ -63,8 +63,10 @@ class PcapGen(object):
         so that I could diff and then easier back annotate with packet numbers
         '''
         if self.arg_packet_numbers:
-            self.pcomment("Generated from packet %s/%s" %
-                          (self.submit.packet_number, self.pktn_str()))
+            postfix = "%s/%s" % (self.submit.packet_number, self.pktn_str())
+        else:
+            postfix = "N/A"
+        self.pcomment("Generated from packet %s" % postfix)
 
     def packnumt(self):
         if self.arg_packet_numbers:

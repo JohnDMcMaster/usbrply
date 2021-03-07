@@ -294,8 +294,9 @@ class Gen(PcapGen):
             if not self.urb.id in self.pending_complete:
                 # Interrupts can generate these
                 if self.verbose:
-                    self.gwarning("Packet %s missing submit.  URB ID: 0x%016lX" %
-                                  (self.pktn_str(), self.urb.id))
+                    self.gwarning(
+                        "Packet %s missing submit.  URB ID: 0x%016lX" %
+                        (self.pktn_str(), self.urb.id))
             else:
                 self.process_complete(self.pending_complete[self.urb.id],
                                       self.urb, dat_cur)
