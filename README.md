@@ -131,6 +131,9 @@ v2.1.0
   * Better logging for dropped packets
   * --no-packet-numbers: line numbers line up vs --packet-numbers
 
+v2.1.1
+  * Fixme pip README
+
 # JSON output
 
 use -j switch to output a parsing intermediate representation that should resemble original USB requests

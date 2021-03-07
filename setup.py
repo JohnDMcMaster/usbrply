@@ -2,6 +2,10 @@ import os
 from setuptools import setup, find_packages
 import shutil
 
+
+def read(fname):
+    return open(os.path.join(os.path.dirname(__file__), fname)).read()
+
 if not os.path.exists('build'):
     os.mkdir('build')
 scripts = (('main.py', 'usbrply'),
@@ -19,7 +23,7 @@ for src_fn, prog_name in scripts:
 
 setup(
     name="usbrply",
-    version="2.1.0",
+    version="2.1.1",
     author="John McMaster",
     author_email='JohnDMcMaster@gmail.com',
     description=("Replay captured USB packets from .pcap file."),
@@ -31,7 +35,8 @@ setup(
     install_requires=[
         "python-pcapng",
     ],
-    long_description="see README.md",
+    long_description=read('README.md'),
+    long_description_content_type='text/markdown',
     classifiers=[
         "License :: OSI Approved :: BSD License",
     ],
