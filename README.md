@@ -122,6 +122,15 @@ v2.0.0
 v2.0.1
   * Fix packaging issues
 
+v2.1.0
+  * python2 support officially removed
+  * VID/PID filter fixed
+  * Windows pip install instructions
+  * Linux: basic interrupt support
+  * General interrupt cleanup / fixes
+  * Better logging for dropped packets
+  * --no-packet-numbers: line numbers line up vs --packet-numbers
+
 # JSON output
 
 use -j switch to output a parsing intermediate representation that should resemble original USB requests
