@@ -110,7 +110,7 @@ v0.0.1
   * Crusty python program
 
 v1.0.0
-  * Seperate parsing from printing
+  * Separate parsing from printing
   * Windows data source officially supported
 
 v2.0.0
@@ -132,7 +132,7 @@ v2.1.0
   * --no-packet-numbers: line numbers line up vs --packet-numbers
 
 v2.1.1
-  * Fixme pip README
+  * Fix pip README
 
 # JSON output
 
