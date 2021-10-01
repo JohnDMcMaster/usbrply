@@ -105,15 +105,18 @@ def load_pcap(fn, loop_cb, lim=float('inf'), use_pcapng=None):
 
 
 def guess_parser(fn):
-    windows = [0]
-    linux = [0]
+    windows = 0
+    linux = 0
 
     def loop_cb_guess(caplen, packet, ts):
+        nonlocal windows
+        nonlocal linux
+
         packet = bytearray(packet)
         if guess_linux(packet):
-            linux[0] += 1
+            linux += 1
         if guess_windows(packet):
-            windows[0] += 1
+            windows += 1
 
     parser = PcapParser(fn)
     i = 0
@@ -122,14 +125,14 @@ def guess_parser(fn):
         if i >= 3:
             break
 
-    if windows[0]:
-        assert linux[0] == 0
+    if windows:
+        assert linux == 0
         if parser.use_pcapng:
             return "win-pcapng"
         else:
             return "win-pcap"
-    if linux[0]:
-        assert windows[0] == 0
+    if linux:
+        assert windows == 0
         if parser.use_pcapng:
             return "lin-pcapng"
         else:
