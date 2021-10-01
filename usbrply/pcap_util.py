@@ -104,26 +104,66 @@ def load_pcap(fn, loop_cb, lim=float('inf'), use_pcapng=None):
             break
 
 
+def guess_parser_pcapng(fn):
+    if not pcapng:
+        return None
+
+    with open(fn, "rb") as fp:
+        scanner = pcapng.FileScanner(fp)
+        blocks = iter(scanner)
+        # Occurs if it can't parse the pcapng header
+        try:
+            block = next(blocks)
+        except ValueError:
+            return None
+
+        assert type(block) is pcapng.blocks.SectionHeader
+
+        os = block.options["shb_os"]
+        if "Linux" in os:
+            return "Linux"
+        elif "Windows" in os:
+            return "Windows"
+        else:
+            assert 0, "unexpected os %s" % (os,)
+
+
 def guess_parser(fn):
-    windows = 0
-    linux = 0
+    # pcapng detection is reliable and direct using file headers
+    pcapng_guess = guess_parser_pcapng(fn)
+    if pcapng_guess is not None:
+        if pcapng_guess == "Windows":
+            if pcap:
+                return "win-pcap"
+            else:
+                return "win-pcapng"
+        elif pcapng_guess == "Linux":
+            if pcap:
+                return "lin-pcap"
+            else:
+                return "lin-pcapng"
+        else:
+            assert 0
+    else:
+        windows = 0
+        linux = 0
 
-    def loop_cb_guess(caplen, packet, ts):
-        nonlocal windows
-        nonlocal linux
+        def loop_cb_guess(caplen, packet, ts):
+            nonlocal windows
+            nonlocal linux
 
-        packet = bytearray(packet)
-        if guess_linux(packet):
-            linux += 1
-        if guess_windows(packet):
-            windows += 1
+            packet = bytearray(packet)
+            if guess_linux(packet):
+                linux += 1
+            if guess_windows(packet):
+                windows += 1
 
-    parser = PcapParser(fn)
-    i = 0
-    while parser.next(loop_cb_guess):
-        i += 1
-        if i >= 3:
-            break
+        parser = PcapParser(fn)
+        i = 0
+        while parser.next(loop_cb_guess):
+            i += 1
+            if i >= 3:
+                break
 
     if windows:
         assert linux == 0
