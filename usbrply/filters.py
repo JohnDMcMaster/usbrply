@@ -22,7 +22,7 @@ def run(filts, jgen, argsj={}, verbose=False):
 
     filt0 = filts[0]
     cls = filters[filt0]
-    return run(filts[1:], cls(argsj).run(jgen), argsj=argsj, verbose=verbose)
+    return run(filts[1:], cls(argsj, verbose=verbose).run(jgen), argsj=argsj, verbose=verbose)
 
 
 # FIXME: loaded data is not generated
