@@ -122,8 +122,7 @@ def main():
 
     parsed = usbrply.parsers.pcap2json(args.fin, argsj)
     filters = []
-    if args.pid or args.vid:
-        filters.append("vidpid")
+    filters.append("vidpid")
     if not args.setup:
         filters.append("setup")
     if args.comment or args.fx2:

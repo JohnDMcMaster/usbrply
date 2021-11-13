@@ -1,5 +1,6 @@
 from __future__ import print_function
 from usbrply import printer
+from usbrply import parsers
 from .printer import Printer, indented, indent_inc, indent_dec
 import sys
 import binascii
@@ -44,9 +45,10 @@ class LibusbPyPrinter(Printer):
         self.sleep = argsj.get("sleep", False)
         self.packet_numbers = argsj.get("packet_numbers", True)
         # FIXME
-        self.vid = 0
-        self.pid = 0
+        self.vid = None
+        self.pid = None
         self.verbose = verbose
+        self.argsj = argsj
 
     def print_imports(self):
         print('''\
@@ -224,11 +226,17 @@ if __name__ == "__main__":
         self.prevd = None
 
         # Convert generator into static JSON
-        j = {}
-        for k, v in jgen:
-            j[k] = v
+        # caches vid/pid among other things
+        j = parsers.jgen2j(jgen)
 
         for d in j["data"]:
             self.parse_data(d)
+
+        if self.wrapper and (self.vid is None or self.pid is None):
+            if len(j["device2vidpid"]) != 1:
+                raise Exception("Failed to guess vid/pid: found %u device entries" % len(j["device2vidpid"]))
+            for (vid, pid) in  j["device2vidpid"].values():
+                self.vid = vid
+                self.pid = pid
 
         self.footer()

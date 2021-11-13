@@ -220,7 +220,7 @@ class Gen(PcapGen):
                   caplen, len(packet))
             return
         if self.verbose:
-            print('Len: %d' % len(packet))
+            print('loop_cb, len: %d' % len(packet))
 
         self.printv("Length %u" % (len(packet), ))
         if len(packet) < usb_urb_sz:
