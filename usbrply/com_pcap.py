@@ -134,6 +134,7 @@ class PcapGen(object):
             self.gcomment('PCapGen device hi: selected device %u' %
                           self.arg_device)
             self.cur_packn = 0
+            yield 'device', self.arg_device
 
         self.printv("parsing from range %s to %s" %
                     (self.min_packet, self.max_packet))
