@@ -11,6 +11,17 @@ def default_arg(argsj, k, default):
     else:
         return val
 
+def format_vidpid(vid, pid):
+    def fmt(x):
+        if x is None:
+            return "None"
+        else:
+            return "%04x" % x
+
+    if vid is None and pid is None:
+        return "None"
+    else:
+        return "%s:%s" % (fmt(vid), fmt(pid))
 
 class VidpidFilter(object):
     def __init__(self, argsj, verbose=False):
@@ -26,8 +37,6 @@ class VidpidFilter(object):
 
     def should_filter(self, data):
         comments = []
-        if self.arg_vid is None and self.arg_pid is None:
-            return False, comments
 
         device = data.get('device')
         # Comment / metadata
@@ -46,6 +55,11 @@ class VidpidFilter(object):
             vid, pid = struct.unpack("<HH", buff[0x08:0x0C])
             # print("VID PID 0x%04X 0x%04X" % (vid, pid))
             self.device2vidpid[device] = (vid, pid)
+            self.verbose and print("vidpid: dev %u => %04X:%04X" % (device, vid, pid))
+
+            if self.arg_vid is None and self.arg_pid is None:
+                return False, comments
+
             if (vid == self.arg_vid
                     or self.arg_vid is None) or (pid == self.arg_pid
                                                  or self.arg_pid is None):
@@ -79,14 +93,14 @@ class VidpidFilter(object):
         }
 
     def gen_data(self, datas):
+        self.verbose and print("vidpid: want %s" % (format_vidpid(self.arg_vid, self.arg_pid)))
         for data in datas:
             self.entries += 1
             should_filter, yields = self.should_filter(data)
             for y in yields:
                 yield y
             if should_filter:
-                if self.verbose:
-                    print("VidpidFilter drop %s (%s %s %s)" %
+                self.verbose and print("VidpidFilter drop %s (%s %s %s)" %
                           (data['type'],
                            req2s(data["bRequestType"], data["bRequest"]),
                            data["bRequestType"], data["bRequest"]))
@@ -102,3 +116,5 @@ class VidpidFilter(object):
                 yield k, self.gen_data(v)
             else:
                 yield k, v
+        self.verbose and print("vidpid: %u device mappings" % (len(self.device2vidpid)))
+        yield "device2vidpid", self.device2vidpid
