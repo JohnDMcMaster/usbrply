@@ -72,7 +72,7 @@ Sample workflow for capturing Windows traffic and replaying traffic in Python:
 * Assuming your usb device is connected to the computer, go to "Device manager", find your device, right click on it, select "Properties", go to "Details" tab, select "Hardware IDs" from the drop-down, and you will find an entry of a form: HID\VID_046D&PID_C05A For this example the vid is 0x046D and the pid is 0xC05A
 * Scroll down to the bottom of replay.py and edit the following line:
 *         if (vid, pid) == (**0x0000**, **0x0000**):
-* New line:
+* Example edited line:
 *         if (vid, pid) == (**0x046D**, **0xC05A**):    
 * Linux: run "python replay.py"
 * Verify expected device behavior. Did an LED blink? Did you get expected data back?
