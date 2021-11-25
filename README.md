@@ -41,6 +41,16 @@ Setup python and pip
  * I used Python 3.7.8 (Windows x86-64 executable installer)
  * Keep default setup options (in particular this will install pip)
 
+Install libusb1
+* pip install libusb1
+
+Install usb drivers
+* Some USB drivers won't replay. You need to switch their USB drivers to WinUSB. You can use Zadig to switch between USB libraries for a single device.
+* https://zadig.akeo.ie/
+* Run Zadig
+* Click on **Options** then **List all devices** then select the USB device that doesn't replay properly and **Replace Driver** with WinUSB
+
+
 Install
 * Open a command prompt
   * Default should be your home dir (ex: C:\Users\mcmaster)
