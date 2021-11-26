@@ -72,7 +72,8 @@ Sample workflow for capturing Windows traffic and replaying traffic in Python:
 * Install Wireshark. Make sure you install the USBPcap library
 * Start Wireshark
 * Connect USB device to computer
-* Start capture
+* Select which USB device you want to capture by clicking on the tiny blue cogwheel and checking the box next to the USB device you want to capture ![usbPcap](docs/usbPcap.png)
+* Double click on the USBPcap to start the capture
 * Start your application, do your thing, etc to generate packets
 * Close application
 * Stop capture
