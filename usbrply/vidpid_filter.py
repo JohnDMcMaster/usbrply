@@ -33,7 +33,11 @@ class VidpidFilter(object):
         self.drops = 0
 
         self.arg_vid = default_arg(argsj, "vid", None)
+        if not self.arg_vid:
+            self.arg_vid = None
         self.arg_pid = default_arg(argsj, "pid", None)
+        if not self.arg_pid:
+            self.arg_pid = None
         self.device2vidpid = {}
         self.keep_device = None
 
@@ -83,6 +87,9 @@ class VidpidFilter(object):
                     self.keep_device = device
             return False, comments
 
+        if self.arg_vid is None and self.arg_pid is None:
+            return False, comments
+
         # Filter:
         # Devices not matching target
         # Anything before we've established mapping. Most of this traffic isn't important and simplifies parser
@@ -112,8 +119,9 @@ class VidpidFilter(object):
                 self.drops += 1
                 continue
             yield data
-        yield self.comment("VidpidFilter: dropped %s / %s entries" %
-                           (self.drops, self.entries))
+        yield self.comment("VidpidFilter: dropped %s / %s entries, want %s" %
+                           (self.drops, self.entries,
+                            format_vidpid(self.arg_vid, self.arg_pid)))
 
     def run(self, jgen):
         for k, v in jgen:
