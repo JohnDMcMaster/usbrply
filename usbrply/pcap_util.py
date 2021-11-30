@@ -125,7 +125,7 @@ def guess_parser_pcapng(fn):
         elif "Windows" in os:
             return "Windows"
         else:
-            assert 0, "unexpected os %s" % (os,)
+            assert 0, "unexpected os %s" % (os, )
 
 
 def guess_parser(fn):

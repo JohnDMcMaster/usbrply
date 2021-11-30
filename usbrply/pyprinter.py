@@ -161,7 +161,8 @@ if __name__ == "__main__":
         # print(d)
         if self.sleep and self.prevd and d["type"] != "comment":
             try:
-                self.verbose and print("prevd submit t: ", self.prevd["submit"]["t"])
+                self.verbose and print("prevd submit t: ",
+                                       self.prevd["submit"]["t"])
                 self.verbose and print("this submit t: ", d["submit"]["t"])
                 dt = d["submit"]["t"] - self.prevd["submit"]["t"]
             except KeyError:
@@ -238,8 +239,10 @@ if __name__ == "__main__":
 
         if self.wrapper and (self.vid is None or self.pid is None):
             if len(j["device2vidpid"]) != 1:
-                raise Exception("Failed to guess vid/pid: found %u device entries" % len(j["device2vidpid"]))
-            for (vid, pid) in  j["device2vidpid"].values():
+                raise Exception(
+                    "Failed to guess vid/pid: found %u device entries" %
+                    len(j["device2vidpid"]))
+            for (vid, pid) in j["device2vidpid"].values():
                 self.vid = vid
                 self.pid = pid
 

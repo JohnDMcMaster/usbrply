@@ -641,7 +641,8 @@ class Gen(PcapGen):
         }
         if len(self.pcomments):
             j["comments"] = self.pcomments
-        self.verbose and print("output_packet", j["submit"]["t"], j["complete"]["t"])
+        self.verbose and print("output_packet", j["submit"]["t"],
+                               j["complete"]["t"])
         self.jbuff.append(j)
         self.pcomments = []
 
