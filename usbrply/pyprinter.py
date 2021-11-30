@@ -161,10 +161,18 @@ if __name__ == "__main__":
         # print(d)
         if self.sleep and self.prevd and d["type"] != "comment":
             try:
-                self.verbose and print("prevd submit t: ",
-                                       self.prevd["submit"]["t"])
-                self.verbose and print("this submit t: ", d["submit"]["t"])
-                dt = d["submit"]["t"] - self.prevd["submit"]["t"]
+                # Fall back to t_urb for original pcap format on Linux?
+                def gett(d):
+                    if "t" in d["submit"]:
+                        return d["submit"]["t"]
+                    elif "t_urb" in d["submit"]:
+                        return d["submit"]["t"]
+                    else:
+                        raise Exception(
+                            "Requested sleep but couldn't establish time reference"
+                        )
+
+                dt = gett(d) - gett(self.prevd)
             except KeyError:
                 raise ValueError("Input JSON does not support timestamps")
             if dt >= 0.001:
