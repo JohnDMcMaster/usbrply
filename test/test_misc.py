@@ -8,18 +8,21 @@ from usbrply import printer
 from usbrply import parsers
 import warnings
 
-devnull = open("/dev/null", "w")
-
 
 class TestCase(unittest.TestCase):
     def setUp(self):
         """Call before every test case."""
-        warnings.simplefilter("ignore")
-        printer.print_file = devnull
+        print("")
+        print("")
+        print("")
+        print("Start " + self._testMethodName)
+        self.verbose = os.getenv("VERBOSE", "N") == "Y"
+        #warnings.simplefilter("ignore")
+        printer.print_file = open("/dev/null", "w")
 
     def tearDown(self):
         """Call after every test case."""
-        pass
+        printer.print_file.close()
 
     def test_parse_win_pcap(self):
         """Windows .pcap parse test"""
