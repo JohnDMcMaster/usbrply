@@ -18,8 +18,9 @@ class PendingRX:
         # Unprocessed packet bytes
 
         self.raw = None
-        #usb_urb_t m_urb
-        self.m_urb = None
+        #usb_urb_t urb
+        self.urb = None
+        self.urbts = None
         #usb_ctrlrequest m_ctrl
         # Only applies to control requests
         self.m_ctrl = None
@@ -194,6 +195,9 @@ class Gen(PcapGen):
         # Holds PendingRXs
         self.pending_complete = {}
 
+        self.urb = None
+        self.urbts = None
+
     """
     @property
     def arg_setup(self):
@@ -231,6 +235,7 @@ class Gen(PcapGen):
         # caplen is actual length, len is reported
         self.urb_raw = packet
         self.urb = usb_urb(packet[0:usb_urb_sz])
+        self.urbts = ts
         dat_cur = packet[usb_urb_sz:]
 
         self.arg_device = max(self.arg_device, self.urb.device)
@@ -310,7 +315,8 @@ class Gen(PcapGen):
             elif self.urb.transfer_type == URB_INTERRUPT:
                 pending = PendingRX()
                 pending.raw = self.urb_raw
-                pending.m_urb = self.urb
+                pending.urb = self.urb
+                pending.urbts = self.urbts
                 pending.packet_number = self.pktn_str()
                 if self.verbose:
                     print('Added pending interrupt URB 0x%016lX' % self.urb.id)
@@ -378,7 +384,8 @@ class Gen(PcapGen):
     def processControlSubmit(self, dat_cur):
         pending = PendingRX()
         pending.raw = self.urb_raw
-        pending.m_urb = self.urb
+        pending.urb = self.urb
+        pending.urbts = self.urbts
 
         if self.verbose:
             print('Remaining data: %d' % (len(dat_cur)))
@@ -458,7 +465,7 @@ class Gen(PcapGen):
 
         #print('Control out w/ len %d' % len(submit.m_data_out))
 
-        # print("Data out size: %u vs urb size %u" % (submit.m_data_out_size, submit.m_urb.data_length ))
+        # print("Data out size: %u vs urb size %u" % (submit.m_data_out_size, submit.urb.data_length ))
         if len(self.submit.m_data_out):
             # Note that its the submit from earlier, not the ack that we care about
             data_str = bytes2Hex(self.submit.m_data_out)
@@ -474,19 +481,21 @@ class Gen(PcapGen):
         })
 
     def output_packet(self, j):
-        urbj_submit = urb2json(self.submit.m_urb)
+        urbj_submit = urb2json(self.submit.urb)
         urbj_complete = urb2json(self.urb)
         nsub, ncomplete = self.packnumt()
         j["submit"] = {
             "packn": nsub,
             'urb': urbj_submit,
-            't': urbj_submit["t"],
+            't': self.submit.urbts,
+            't_urb': urbj_submit["t"],
         }
         j["device"] = j["submit"]["urb"]["device"]
         j["complete"] = {
             'packn': ncomplete,
             'urb': urbj_complete,
-            't': urbj_complete["t"],
+            't': self.urbts,
+            't_urb': urbj_complete["t"],
         }
         if len(self.pcomments):
             j["comments"] = self.pcomments
@@ -496,7 +505,8 @@ class Gen(PcapGen):
     def processBulkSubmit(self, dat_cur):
         pending = PendingRX()
         pending.raw = self.urb_raw
-        pending.m_urb = self.urb
+        pending.urb = self.urb
+        pending.urbts = self.urbts
 
         if self.verbose:
             print('Remaining data: %d' % (len(dat_cur)))
@@ -525,7 +535,7 @@ class Gen(PcapGen):
         # packet_numbering = ''
         data_size = 0
         data_str = "None"
-        max_payload_sz = self.submit.m_urb.length
+        max_payload_sz = self.submit.urb.length
 
         # FIXME: this is a messy conversion artfact from the C code
         # Is it legal to have a 0 length bulk in?
@@ -535,7 +545,7 @@ class Gen(PcapGen):
 
         self.output_packet({
             'type': 'bulkRead',
-            'endp': self.submit.m_urb.endpoint,
+            'endp': self.submit.urb.endpoint,
             'len': data_size,
             'data': bytes2Hex(dat_cur)
         })
@@ -562,14 +572,14 @@ class Gen(PcapGen):
         # output below
         self.output_packet({
             'type': 'bulkWrite',
-            'endp': self.submit.m_urb.endpoint,
+            'endp': self.submit.urb.endpoint,
             'data': bytes2Hex(self.submit.m_data_out)
         })
 
     def processInterruptCompleteOut(self, dat_cur):
         # looks like maybe windows doesn't report the request size?
         # think this is always 0
-        # assert self.submit.m_urb.length == 0
+        # assert self.submit.urb.length == 0
 
         # FIXME: this is a messy conversion artifact from the C code
         # Is it legal to have a 0 length bulk in?
@@ -581,7 +591,7 @@ class Gen(PcapGen):
 
         self.output_packet({
             'type': 'interruptWrite',
-            'endp': self.submit.m_urb.endpoint,
+            'endp': self.submit.urb.endpoint,
             'len': data_size,
             'data': bytes2Hex(dat_cur)
         })
@@ -589,7 +599,7 @@ class Gen(PcapGen):
     def processInterruptCompleteIn(self, dat_cur):
         # looks like maybe windows doesn't report the request size?
         # think this is always 0
-        # assert self.submit.m_urb.length == 0
+        # assert self.submit.urb.length == 0
 
         # FIXME: this is a messy conversion artifact from the C code
         # Is it legal to have a 0 length bulk in?
@@ -602,7 +612,7 @@ class Gen(PcapGen):
         # output below
         self.output_packet({
             'type': 'interruptRead',
-            'endp': self.submit.m_urb.endpoint,
+            'endp': self.submit.urb.endpoint,
             'len': data_size,
             'data': bytes2Hex(dat_cur)
         })

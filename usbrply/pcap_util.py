@@ -48,7 +48,10 @@ def guess_windows(buff):
 
 class PcapParser(object):
     def __init__(self, fn, use_pcapng=None):
+        self.fp = None
         self.fn = fn
+        self.scanner = None
+        self.pcap = None
 
         # Select library
         self.use_pcapng = use_pcapng
@@ -69,6 +72,14 @@ class PcapParser(object):
         else:
             self.pcap = pcap.pcapObject()
             self.pcap.open_offline(fn)
+
+    def __del__(self):
+        if self.scanner:
+            del self.scanner
+        if self.pcap:
+            del self.pcap
+        if self.fp:
+            self.fp.close()
 
     def next(self, loop_cb):
         """return True if there was data and might be more, False if nothing was processed"""
@@ -125,7 +136,7 @@ def guess_parser_pcapng(fn):
         elif "Windows" in os:
             return "Windows"
         else:
-            assert 0, "unexpected os %s" % (os,)
+            assert 0, "unexpected os %s" % (os, )
 
 
 def guess_parser(fn):

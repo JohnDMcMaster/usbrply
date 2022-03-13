@@ -38,7 +38,7 @@ def printControlRequest(submit, data_str, data_size, pipe_str):
 
 
 class LibusbPyPrinter(Printer):
-    def __init__(self, argsj, verbose=False):
+    def __init__(self, argsj, verbose=None):
         Printer.__init__(self, argsj)
         self.prevd = None
         self.wrapper = argsj.get("wrapper", False)
@@ -47,6 +47,8 @@ class LibusbPyPrinter(Printer):
         # FIXME
         self.vid = None
         self.pid = None
+        if verbose is None:
+            verbose = argsj.get("verbose", False)
         self.verbose = verbose
         self.argsj = argsj
 
@@ -159,7 +161,18 @@ if __name__ == "__main__":
         # print(d)
         if self.sleep and self.prevd and d["type"] != "comment":
             try:
-                dt = d["submit"]["t"] - self.prevd["submit"]["t"]
+                # Fall back to t_urb for original pcap format on Linux?
+                def gett(d):
+                    if "t" in d["submit"]:
+                        return d["submit"]["t"]
+                    elif "t_urb" in d["submit"]:
+                        return d["submit"]["t"]
+                    else:
+                        raise Exception(
+                            "Requested sleep but couldn't establish time reference"
+                        )
+
+                dt = gett(d) - gett(self.prevd)
             except KeyError:
                 raise ValueError("Input JSON does not support timestamps")
             if dt >= 0.001:
@@ -234,8 +247,10 @@ if __name__ == "__main__":
 
         if self.wrapper and (self.vid is None or self.pid is None):
             if len(j["device2vidpid"]) != 1:
-                raise Exception("Failed to guess vid/pid: found %u device entries" % len(j["device2vidpid"]))
-            for (vid, pid) in  j["device2vidpid"].values():
+                raise Exception(
+                    "Failed to guess vid/pid: found %u device entries" %
+                    len(j["device2vidpid"]))
+            for (vid, pid) in j["device2vidpid"].values():
                 self.vid = vid
                 self.pid = pid
 

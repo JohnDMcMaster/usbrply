@@ -11,6 +11,7 @@ def default_arg(argsj, k, default):
     else:
         return val
 
+
 def format_vidpid(vid, pid):
     def fmt(x):
         if x is None:
@@ -23,6 +24,7 @@ def format_vidpid(vid, pid):
     else:
         return "%s:%s" % (fmt(vid), fmt(pid))
 
+
 class VidpidFilter(object):
     def __init__(self, argsj, verbose=False):
         # self.setup = argsj.get("setup", False)
@@ -31,7 +33,11 @@ class VidpidFilter(object):
         self.drops = 0
 
         self.arg_vid = default_arg(argsj, "vid", None)
+        if not self.arg_vid:
+            self.arg_vid = None
         self.arg_pid = default_arg(argsj, "pid", None)
+        if not self.arg_pid:
+            self.arg_pid = None
         self.device2vidpid = {}
         self.keep_device = None
 
@@ -55,7 +61,8 @@ class VidpidFilter(object):
             vid, pid = struct.unpack("<HH", buff[0x08:0x0C])
             # print("VID PID 0x%04X 0x%04X" % (vid, pid))
             self.device2vidpid[device] = (vid, pid)
-            self.verbose and print("vidpid: dev %u => %04X:%04X" % (device, vid, pid))
+            self.verbose and print("vidpid: dev %u => %04X:%04X" %
+                                   (device, vid, pid))
 
             if self.arg_vid is None and self.arg_pid is None:
                 return False, comments
@@ -80,6 +87,9 @@ class VidpidFilter(object):
                     self.keep_device = device
             return False, comments
 
+        if self.arg_vid is None and self.arg_pid is None:
+            return False, comments
+
         # Filter:
         # Devices not matching target
         # Anything before we've established mapping. Most of this traffic isn't important and simplifies parser
@@ -93,22 +103,25 @@ class VidpidFilter(object):
         }
 
     def gen_data(self, datas):
-        self.verbose and print("vidpid: want %s" % (format_vidpid(self.arg_vid, self.arg_pid)))
+        self.verbose and print("vidpid: want %s" %
+                               (format_vidpid(self.arg_vid, self.arg_pid)))
         for data in datas:
             self.entries += 1
             should_filter, yields = self.should_filter(data)
             for y in yields:
                 yield y
             if should_filter:
-                self.verbose and print("VidpidFilter drop %s (%s %s %s)" %
-                          (data['type'],
-                           req2s(data["bRequestType"], data["bRequest"]),
-                           data["bRequestType"], data["bRequest"]))
+                self.verbose and print(
+                    "VidpidFilter drop %s (%s %s %s)" %
+                    (data['type'], req2s(data["bRequestType"],
+                                         data["bRequest"]),
+                     data["bRequestType"], data["bRequest"]))
                 self.drops += 1
                 continue
             yield data
-        yield self.comment("VidpidFilter: dropped %s / %s entries" %
-                           (self.drops, self.entries))
+        yield self.comment("VidpidFilter: dropped %s / %s entries, want %s" %
+                           (self.drops, self.entries,
+                            format_vidpid(self.arg_vid, self.arg_pid)))
 
     def run(self, jgen):
         for k, v in jgen:
@@ -116,5 +129,6 @@ class VidpidFilter(object):
                 yield k, self.gen_data(v)
             else:
                 yield k, v
-        self.verbose and print("vidpid: %u device mappings" % (len(self.device2vidpid)))
+        self.verbose and print("vidpid: %u device mappings" %
+                               (len(self.device2vidpid)))
         yield "device2vidpid", self.device2vidpid
