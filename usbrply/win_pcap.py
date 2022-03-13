@@ -558,18 +558,10 @@ class Gen(PcapGen):
 
     def processControlCompleteIn(self, dat_cur):
         packet_numbering = ''
-        data_size = 0
-        data_str = "None"
         max_payload_sz = self.submit.m_ctrl.wLength
 
         # Skip xfer_stage
         dat_cur = dat_cur[1:]
-        #print 'shorten'
-
-        # Is it legal to have a 0 length control in?
-        if self.submit.m_ctrl.wLength:
-            data_str = "buff"
-            data_size = self.submit.m_ctrl.wLength
 
         # Verify we actually have enough / expected
         # If exact match don't care
@@ -590,37 +582,14 @@ class Gen(PcapGen):
             'data': bytes2Hex(dat_cur)
         })
 
-        if self.submit.m_ctrl.wLength:
-            if self.arg_packet_numbers:
-                packet_numbering = "packet %s/%s" % (self.submit.packet_number,
-                                                     self.pktn_str())
-            else:
-                # TODO: consider counting instead of by captured index
-                packet_numbering = "packet"
-
     def processControlCompleteOut(self, dat_cur):
-        data_size = 0
-        data_str = "None"
-        data = None
-
-        #print 'Control out w/ len %d' % len(submit.m_data_out)
-
-        # print "Data out size: %u vs urb size %u" % (submit.m_data_out_size, submit.urb.data_length )
-        # For some reason the request data is in the reply
-        # Skip xfer_type
-        data = dat_cur[1:]
-
-        if data:
-            data_str = bytes2Hex(data)
-            data_size = len(data)
-
         self.output_packet({
             'type': 'controlWrite',
             'bRequestType': self.submit.m_ctrl.bRequestType,
             'bRequest': self.submit.m_ctrl.bRequest,
             'wValue': self.submit.m_ctrl.wValue,
             'wIndex': self.submit.m_ctrl.wIndex,
-            'data': bytes2Hex(data)
+            'data': bytes2Hex(self.submit.m_data_out)
         })
 
     def output_packet(self, j):
@@ -777,6 +746,5 @@ class Gen(PcapGen):
         # caplen is actual length, len is reported
         self.urb_raw = packet
         self.urb = usb_urb(packet[0:usb_urb_sz])
-        dat_cur = packet[usb_urb_sz:]
 
         self.arg_device = max(self.arg_device, self.urb.device)
