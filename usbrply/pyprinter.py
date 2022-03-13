@@ -220,6 +220,7 @@ if __name__ == "__main__":
                 binascii.unhexlify(d["data"])), packet_numbering))
 
         elif d["type"] == "interruptWrite":
+            data_str = bytes2AnonArray(binascii.unhexlify(d["data"]))
             indented("interruptWrite(0x%02X, %s)" % (d["endp"], data_str))
         else:
             if self.verbose:

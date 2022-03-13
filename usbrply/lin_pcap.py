@@ -313,14 +313,7 @@ class Gen(PcapGen):
             elif self.urb.transfer_type == URB_BULK:
                 self.processBulkSubmit(dat_cur)
             elif self.urb.transfer_type == URB_INTERRUPT:
-                pending = PendingRX()
-                pending.raw = self.urb_raw
-                pending.urb = self.urb
-                pending.urbts = self.urbts
-                pending.packet_number = self.pktn_str()
-                if self.verbose:
-                    print('Added pending interrupt URB 0x%016lX' % self.urb.id)
-                self.pending_complete[self.urb.id] = pending
+                self.processInterruptSubmit(dat_cur)
 
         # Should have either generated no comments or attached them
         assert len(self.pcomments) == 0, ("unhandled comment", self.pcomments)
@@ -576,6 +569,18 @@ class Gen(PcapGen):
             'data': bytes2Hex(self.submit.m_data_out)
         })
 
+    def processInterruptSubmit(self, dat_cur):
+        pending = PendingRX()
+        pending.raw = self.urb_raw
+        pending.urb = self.urb
+        pending.urbts = self.urbts
+        pending.packet_number = self.pktn_str()
+        if self.verbose:
+            print('Added pending interrupt URB 0x%016lX' % self.urb.id)
+        if not (self.urb.endpoint & URB_TRANSFER_IN):
+            pending.m_data_out = bytes(dat_cur)
+        self.pending_complete[self.urb.id] = pending
+
     def processInterruptCompleteOut(self, dat_cur):
         # looks like maybe windows doesn't report the request size?
         # think this is always 0
@@ -593,7 +598,7 @@ class Gen(PcapGen):
             'type': 'interruptWrite',
             'endp': self.submit.urb.endpoint,
             'len': data_size,
-            'data': bytes2Hex(dat_cur)
+            'data': bytes2Hex(self.submit.m_data_out)
         })
 
     def processInterruptCompleteIn(self, dat_cur):

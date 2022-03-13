@@ -62,7 +62,7 @@ class TestCase(unittest.TestCase):
         Not exactly sure what this is but its at the beginning of my test capture
         Normally there?
         """
-        usbrply.printers.run("json",
+        usbrply.printers.run("libusb-py",
                              usbrply.parsers.pcap2json(
                                  "test/data/win_setup_pipes.pcapng",
                                  argsj=self.argsj),
@@ -79,7 +79,7 @@ class TestCase(unittest.TestCase):
         """
         Verify bulk out parses on Windows
         """
-        usbrply.printers.run("json",
+        usbrply.printers.run("libusb-py",
                              usbrply.parsers.pcap2json(
                                  "test/data/win_setup_bulk-out.pcapng",
                                  argsj=self.argsj),
@@ -89,7 +89,7 @@ class TestCase(unittest.TestCase):
         """
         Verify control in parses on Windows
         """
-        usbrply.printers.run("json",
+        usbrply.printers.run("libusb-py",
                              usbrply.parsers.pcap2json(
                                  "test/data/win_setup_control-in.pcapng",
                                  argsj=self.argsj),
@@ -99,7 +99,7 @@ class TestCase(unittest.TestCase):
         """
         Verify control out parses on Windows
         """
-        usbrply.printers.run("json",
+        usbrply.printers.run("libusb-py",
                              usbrply.parsers.pcap2json(
                                  "test/data/win_setup_control-out.pcapng",
                                  argsj=self.argsj),
@@ -119,7 +119,7 @@ class TestCase(unittest.TestCase):
         """
         Verify control in parses on Linux
         """
-        usbrply.printers.run("json",
+        usbrply.printers.run("libusb-py",
                              usbrply.parsers.pcap2json(
                                  "test/data/lin_setup_control-in.pcapng",
                                  argsj=self.argsj),
@@ -129,11 +129,22 @@ class TestCase(unittest.TestCase):
         """
         Verify control out parses on Linux
         """
-        usbrply.printers.run("json",
+        usbrply.printers.run("libusb-py",
                              usbrply.parsers.pcap2json(
                                  "test/data/lin_setup_control-out.pcapng",
                                  argsj=self.argsj),
                              argsj=self.argsj)
+
+    def test_lin_interrupt_out(self):
+        """
+        Verify interrupt out parses on Linux
+        """
+        usbrply.printers.run("libusb-py",
+                             usbrply.parsers.pcap2json(
+                                 "test/data/lin_interrupt_out.pcapng",
+                                 argsj=self.argsj),
+                             argsj=self.argsj)
+
 
 
 if __name__ == "__main__":
