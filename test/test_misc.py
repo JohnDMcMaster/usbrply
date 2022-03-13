@@ -27,19 +27,19 @@ class TestCase(unittest.TestCase):
 
     def test_print_json(self):
         usbrply.printers.run("json",
-                             usbrply.parsers.pcap2json("test/data/lin1.pcapng",
+                             usbrply.parsers.pcap2json("test/data/lin_misc.pcapng",
                                                        argsj=self.argsj),
                              argsj=self.argsj)
 
     def test_print_pyprinter_lin(self):
         usbrply.printers.run("libusb-py",
-                             usbrply.parsers.pcap2json("test/data/lin1.pcapng",
+                             usbrply.parsers.pcap2json("test/data/lin_misc.pcapng",
                                                        argsj=self.argsj),
                              argsj=self.argsj)
 
     def test_print_pyprinter_win(self):
         usbrply.printers.run("libusb-py",
-                             usbrply.parsers.pcap2json("test/data/win1.pcapng",
+                             usbrply.parsers.pcap2json("test/data/win_misc.pcapng",
                                                        argsj=self.argsj),
                              argsj=self.argsj)
 
@@ -50,7 +50,7 @@ class TestCase(unittest.TestCase):
     def test_parse_win_pcap(self):
         """Windows .pcap parse test"""
         parsers.jgen2j(
-            usbrply.parsers.pcap2json("test/data/win1.pcapng",
+            usbrply.parsers.pcap2json("test/data/win_misc.pcapng",
                                       argsj=self.argsj))
 
     def test_win_pipes(self):
@@ -75,13 +75,30 @@ class TestCase(unittest.TestCase):
                                  argsj=self.argsj),
                              argsj=self.argsj)
 
+    def test_win_interrupt_in(self):
+        usbrply.printers.run("json",
+                             usbrply.parsers.pcap2json(
+                                 "test/data/win_interrupt-in.pcapng",
+                                 argsj=self.argsj),
+                             argsj=self.argsj)
+
     def test_win_bulk_out(self):
         """
         Verify bulk out parses on Windows
         """
         usbrply.printers.run("libusb-py",
                              usbrply.parsers.pcap2json(
-                                 "test/data/win_setup_bulk-out.pcapng",
+                                 "test/data/win_bulk-out.pcapng",
+                                 argsj=self.argsj),
+                             argsj=self.argsj)
+
+    def test_win_bulk_in(self):
+        """
+        Verify bulk in parses on Windows
+        """
+        usbrply.printers.run("libusb-py",
+                             usbrply.parsers.pcap2json(
+                                 "test/data/win_bulk-in.pcapng",
                                  argsj=self.argsj),
                              argsj=self.argsj)
 
@@ -91,7 +108,7 @@ class TestCase(unittest.TestCase):
         """
         usbrply.printers.run("libusb-py",
                              usbrply.parsers.pcap2json(
-                                 "test/data/win_setup_control-in.pcapng",
+                                 "test/data/win_control-in.pcapng",
                                  argsj=self.argsj),
                              argsj=self.argsj)
 
@@ -101,7 +118,7 @@ class TestCase(unittest.TestCase):
         """
         usbrply.printers.run("libusb-py",
                              usbrply.parsers.pcap2json(
-                                 "test/data/win_setup_control-out.pcapng",
+                                 "test/data/win_control-out_len-0.pcapng",
                                  argsj=self.argsj),
                              argsj=self.argsj)
 
@@ -112,7 +129,13 @@ class TestCase(unittest.TestCase):
     def test_parse_lin_pcap(self):
         """Linux .pcap parse test"""
         parsers.jgen2j(
-            usbrply.parsers.pcap2json("test/data/lin1.pcapng",
+            usbrply.parsers.pcap2json("test/data/lin_misc.pcapng",
+                                      argsj=self.argsj))
+
+    def test_parse_lin_setup(self):
+        """Linux .pcap parse test"""
+        parsers.jgen2j(
+            usbrply.parsers.pcap2json("test/data/lin_setup.pcapng",
                                       argsj=self.argsj))
 
     def test_lin_control_in(self):
@@ -121,7 +144,7 @@ class TestCase(unittest.TestCase):
         """
         usbrply.printers.run("libusb-py",
                              usbrply.parsers.pcap2json(
-                                 "test/data/lin_setup_control-in.pcapng",
+                                 "test/data/lin_control-in.pcapng",
                                  argsj=self.argsj),
                              argsj=self.argsj)
 
@@ -131,7 +154,17 @@ class TestCase(unittest.TestCase):
         """
         usbrply.printers.run("libusb-py",
                              usbrply.parsers.pcap2json(
-                                 "test/data/lin_setup_control-out.pcapng",
+                                 "test/data/lin_control-out.pcapng",
+                                 argsj=self.argsj),
+                             argsj=self.argsj)
+
+    def test_lin_interrupt_in(self):
+        """
+        Verify interrupt in parses on Linux
+        """
+        usbrply.printers.run("libusb-py",
+                             usbrply.parsers.pcap2json(
+                                 "test/data/lin_interrupt-in.pcapng",
                                  argsj=self.argsj),
                              argsj=self.argsj)
 
@@ -141,7 +174,7 @@ class TestCase(unittest.TestCase):
         """
         usbrply.printers.run("libusb-py",
                              usbrply.parsers.pcap2json(
-                                 "test/data/lin_interrupt_out.pcapng",
+                                 "test/data/lin_interrupt-out.pcapng",
                                  argsj=self.argsj),
                              argsj=self.argsj)
 
