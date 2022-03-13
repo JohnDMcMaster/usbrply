@@ -6,7 +6,37 @@ import unittest
 import os
 from usbrply import printer
 from usbrply import parsers
-import warnings
+import json
+
+
+def printj(j):
+    """For debugging"""
+    print(json.dumps(j, sort_keys=True, indent=4, separators=(',', ': ')))
+
+
+def find_packets(j):
+    """Return non-comment packets in json"""
+    ret = []
+    for packet in j["data"]:
+        if packet["type"] == "comment":
+            continue
+        ret.append(packet)
+    return ret
+
+
+def find_packet(j):
+    """Return the single packet in json"""
+    packets = find_packets(j)
+    assert len(packets) == 1, len(packets)
+    return packets[0]
+
+
+def run_printers_json(fn, argsj):
+    j = parsers.jgen2j(usbrply.parsers.pcap2json(fn, argsj=argsj))
+    usbrply.printers.run("libusb-py",
+                         usbrply.parsers.pcap2json(fn, argsj=argsj),
+                         argsj=argsj)
+    return j
 
 
 class TestCase(unittest.TestCase):
@@ -26,22 +56,25 @@ class TestCase(unittest.TestCase):
         printer.print_file.close()
 
     def test_print_json(self):
-        usbrply.printers.run("json",
-                             usbrply.parsers.pcap2json("test/data/lin_misc.pcapng",
-                                                       argsj=self.argsj),
-                             argsj=self.argsj)
+        usbrply.printers.run(
+            "json",
+            usbrply.parsers.pcap2json("test/data/lin_misc.pcapng",
+                                      argsj=self.argsj),
+            argsj=self.argsj)
 
     def test_print_pyprinter_lin(self):
-        usbrply.printers.run("libusb-py",
-                             usbrply.parsers.pcap2json("test/data/lin_misc.pcapng",
-                                                       argsj=self.argsj),
-                             argsj=self.argsj)
+        usbrply.printers.run(
+            "libusb-py",
+            usbrply.parsers.pcap2json("test/data/lin_misc.pcapng",
+                                      argsj=self.argsj),
+            argsj=self.argsj)
 
     def test_print_pyprinter_win(self):
-        usbrply.printers.run("libusb-py",
-                             usbrply.parsers.pcap2json("test/data/win_misc.pcapng",
-                                                       argsj=self.argsj),
-                             argsj=self.argsj)
+        usbrply.printers.run(
+            "libusb-py",
+            usbrply.parsers.pcap2json("test/data/win_misc.pcapng",
+                                      argsj=self.argsj),
+            argsj=self.argsj)
 
     """
     Windows
@@ -116,11 +149,14 @@ class TestCase(unittest.TestCase):
         """
         Verify control out parses on Windows
         """
-        usbrply.printers.run("libusb-py",
-                             usbrply.parsers.pcap2json(
-                                 "test/data/win_control-out_len-0.pcapng",
-                                 argsj=self.argsj),
-                             argsj=self.argsj)
+        packet = find_packet(
+            run_printers_json("test/data/win_control-out_len-0.pcapng",
+                              self.argsj))
+        assert len(packet["data"]) == 0
+
+        packet = find_packet(
+            run_printers_json("test/data/win_control-out.pcapng", self.argsj))
+        assert packet["data"]
 
     """
     Linux
@@ -177,7 +213,6 @@ class TestCase(unittest.TestCase):
                                  "test/data/lin_interrupt-out.pcapng",
                                  argsj=self.argsj),
                              argsj=self.argsj)
-
 
 
 if __name__ == "__main__":
