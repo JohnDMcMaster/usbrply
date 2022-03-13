@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import usbrply.parsers
 import usbrply.printers
@@ -56,6 +56,45 @@ class TestCase(unittest.TestCase):
         usbrply.printers.run(
             "json",
             usbrply.parsers.pcap2json("test/data/win_interrupt.pcapng", argsj=self.argsj), argsj=self.argsj)
+
+
+    def test_win_pipes(self):
+        """
+        Verify special PIPE setup packets are handled:
+        -URB_FUNCTION_ABORT_PIPE
+        -URB_FUNCTION_SYNC_RESET_PIPE_AND_CLEAR_STALL
+
+        Not exactly sure what this is but its at the beginning of my test capture
+        Normally there?
+        """
+        usbrply.printers.run(
+            "json",
+            usbrply.parsers.pcap2json("test/data/win_setup_pipes.pcapng", argsj=self.argsj), argsj=self.argsj)
+
+    def test_win_bulk_out(self):
+        """
+        Verify bulk out parses on Windows
+        """
+        usbrply.printers.run(
+            "json",
+            usbrply.parsers.pcap2json("test/data/win_setup_bulk-out.pcapng", argsj=self.argsj), argsj=self.argsj)
+
+    def test_win_bulk_in(self):
+        """
+        Verify bulk in parses on Windows
+        """
+        usbrply.printers.run(
+            "json",
+            usbrply.parsers.pcap2json("test/data/win_setup_control-in.pcapng", argsj=self.argsj), argsj=self.argsj)
+
+    def test_win_control_out(self):
+        """
+        Verify control out parses on Windows
+        """
+        usbrply.printers.run(
+            "json",
+            usbrply.parsers.pcap2json("test/data/win_setup_control-out.pcapng", argsj=self.argsj), argsj=self.argsj)
+
 
 
 if __name__ == "__main__":
