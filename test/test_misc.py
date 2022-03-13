@@ -25,27 +25,6 @@ class TestCase(unittest.TestCase):
         """Call after every test case."""
         printer.print_file.close()
 
-    def test_parse_win_pcap(self):
-        """Windows .pcap parse test"""
-        parsers.jgen2j(
-            usbrply.parsers.pcap2json("test/data/win1.pcapng",
-                                      argsj=self.argsj))
-
-    def test_parse_lin_pcap(self):
-        """Linux .pcap parse test"""
-        parsers.jgen2j(
-            usbrply.parsers.pcap2json("test/data/lin1.pcapng",
-                                      argsj=self.argsj))
-
-    def test1(self):
-        return
-        j = parsers.jgen2j(
-            usbrply.parsers.pcap2json("test/data/win1.pcapng",
-                                      argsj=self.argsj))
-        for d in j["data"]:
-            if d["type"] == "controlRead":
-                print(d)
-
     def test_print_json(self):
         usbrply.printers.run("json",
                              usbrply.parsers.pcap2json("test/data/lin1.pcapng",
@@ -68,12 +47,11 @@ class TestCase(unittest.TestCase):
     Windows
     """
 
-    def test_win_interrupt(self):
-        usbrply.printers.run("json",
-                             usbrply.parsers.pcap2json(
-                                 "test/data/win_interrupt.pcapng",
-                                 argsj=self.argsj),
-                             argsj=self.argsj)
+    def test_parse_win_pcap(self):
+        """Windows .pcap parse test"""
+        parsers.jgen2j(
+            usbrply.parsers.pcap2json("test/data/win1.pcapng",
+                                      argsj=self.argsj))
 
     def test_win_pipes(self):
         """
@@ -87,6 +65,13 @@ class TestCase(unittest.TestCase):
         usbrply.printers.run("json",
                              usbrply.parsers.pcap2json(
                                  "test/data/win_setup_pipes.pcapng",
+                                 argsj=self.argsj),
+                             argsj=self.argsj)
+
+    def test_win_interrupt(self):
+        usbrply.printers.run("json",
+                             usbrply.parsers.pcap2json(
+                                 "test/data/win_interrupt.pcapng",
                                  argsj=self.argsj),
                              argsj=self.argsj)
 
@@ -123,6 +108,12 @@ class TestCase(unittest.TestCase):
     """
     Linux
     """
+
+    def test_parse_lin_pcap(self):
+        """Linux .pcap parse test"""
+        parsers.jgen2j(
+            usbrply.parsers.pcap2json("test/data/lin1.pcapng",
+                                      argsj=self.argsj))
 
     def test_lin_control_in(self):
         """
