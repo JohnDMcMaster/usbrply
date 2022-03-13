@@ -212,14 +212,15 @@ if __name__ == "__main__":
             # def bulkWrite(self, endpoint, data, timeout=0):
             indented("bulkWrite(0x%02X, %s)" % (d["endp"], data_str))
 
-        elif d["type"] == "interruptRead":
+        elif d["type"] == "interruptIn":
             data_str = "\"\""
             indented("buff = interruptRead(0x%02X, 0x%04X)" %
                      (d["endp"], d["len"]))
             indented("validate_read(%s, buff, \"%s\")" % (bytes2AnonArray(
                 binascii.unhexlify(d["data"])), packet_numbering))
 
-        elif d["type"] == "interruptWrite":
+        elif d["type"] == "interruptOut":
+            data_str = bytes2AnonArray(binascii.unhexlify(d["data"]))
             indented("interruptWrite(0x%02X, %s)" % (d["endp"], data_str))
         else:
             if self.verbose:
