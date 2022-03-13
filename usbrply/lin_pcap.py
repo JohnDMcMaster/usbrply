@@ -595,7 +595,7 @@ class Gen(PcapGen):
             data_size = max_payload_sz
 
         self.output_packet({
-            'type': 'interruptWrite',
+            'type': 'interruptOut',
             'endp': self.submit.urb.endpoint,
             'len': data_size,
             'data': bytes2Hex(self.submit.m_data_out)
@@ -616,7 +616,7 @@ class Gen(PcapGen):
 
         # output below
         self.output_packet({
-            'type': 'interruptRead',
+            'type': 'interruptIn',
             'endp': self.submit.urb.endpoint,
             'len': data_size,
             'data': bytes2Hex(dat_cur)
