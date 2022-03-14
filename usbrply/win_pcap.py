@@ -614,6 +614,7 @@ class Gen(PcapGen):
                                j["complete"]["t"])
         self.jbuff.append(j)
         self.pcomments = []
+        j["device"] = self.urb.device
 
     def processBulkSubmit(self, dat_cur):
         if self.urb.endpoint & URB_TRANSFER_IN:
