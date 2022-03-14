@@ -6,6 +6,7 @@ import unittest
 import os
 from usbrply import printer
 from usbrply import parsers
+from usbrply import filters
 import json
 
 
@@ -69,12 +70,30 @@ class TestCase(unittest.TestCase):
                                       argsj=self.argsj),
             argsj=self.argsj)
 
+    def test_print_pyprinter_lin_wrapped(self):
+        self.argsj["wrapper"] = True
+        parsed = usbrply.parsers.pcap2json("test/data/lin_misc.pcapng",
+                                           argsj=self.argsj)
+        # filters.append("setup")
+        # filters.append("commenter")
+        filtered = filters.run(["vidpid"], parsed, self.argsj)
+        usbrply.printers.run("libusb-py", filtered, argsj=self.argsj)
+
     def test_print_pyprinter_win(self):
         usbrply.printers.run(
             "libusb-py",
             usbrply.parsers.pcap2json("test/data/win_misc.pcapng",
                                       argsj=self.argsj),
             argsj=self.argsj)
+
+    def test_print_pyprinter_win_wrapped(self):
+        self.argsj["wrapper"] = True
+        parsed = usbrply.parsers.pcap2json("test/data/win_misc.pcapng",
+                                           argsj=self.argsj)
+        # filters.append("setup")
+        # filters.append("commenter")
+        filtered = filters.run(["vidpid"], parsed, self.argsj)
+        usbrply.printers.run("libusb-py", filtered, argsj=self.argsj)
 
     """
     Windows
