@@ -28,7 +28,12 @@ XFER_DATA = 1
 # Usb function: URB_FUNCTION_CONTROL_TRANSFER (0x08)
 XFER_STATUS = 2
 
+# https://github.com/tpn/winsdk-10/blob/master/Include/10.0.14393.0/shared/usb.h
 USBD_STATUS_SUCCESS = 0
+# https://github.com/JohnDMcMaster/usbrply/issues/70
+# Not really sure what this is (not in sdk's usb.h), but packet flow looks ok
+# FTDI device's GET_DESCRIPTOR
+USBD_STATUS_120_OK = 120
 
 # https://msdn.microsoft.com/en-us/library/windows/hardware/ff540409(v=vs.85).aspx
 # https://github.com/wine-mirror/wine/blob/master/include/ddk/usb.h
@@ -197,7 +202,7 @@ usb_urb_win_fmt = (
     '<'
     'H'  # pcap_hdr_len
     'Q'  # irp_id
-    'I'  # irp_status
+    'i'  # irp_status
     'H'  # usb_func
     'B'  # irp_info
     'H'  # bus_id
@@ -297,7 +302,10 @@ def urb2json(urb):
 
 
 def urb_error(urb):
-    return urb.irp_status != USBD_STATUS_SUCCESS
+    # return urb.irp_status != USBD_STATUS_SUCCESS
+    # https://github.com/tpn/winsdk-10/blob/master/Include/10.0.14393.0/shared/usb.h#L266
+    # #define USBD_ERROR(Status) ((USBD_STATUS)(Status) < 0)
+    return urb.irp_status < 0
 
 
 def is_urb_submit(urb):
@@ -336,6 +344,17 @@ class Gen(PcapGen):
 
     def platform(self):
         return "windows"
+
+    def bad_packet(self, packet, msg):
+        msg = "Packet %s: %s" % (self.pktn_str(), msg)
+
+        self.errors += 1
+        if self.arg_halt:
+            hexdump(packet)
+            raise ValueError(msg)
+        if self.verbose:
+            print(msg)
+            hexdump(packet)
 
     def loop_cb(self, caplen, packet, ts):
         """
@@ -384,15 +403,9 @@ class Gen(PcapGen):
 
             self.printv("Length %u" % (len(packet), ))
             if len(packet) < usb_urb_sz:
-                msg = "Packet %s: size %d is not min size %d" % (
-                    self.pktn_str(), len(packet), usb_urb_sz)
-                self.errors += 1
-                if self.arg_halt:
-                    hexdump(packet)
-                    raise ValueError(msg)
-                if self.verbose:
-                    print(msg)
-                    hexdump(packet)
+                self.bad_packet(
+                    packet,
+                    "size %d is not min size %d" % (len(packet), usb_urb_sz))
                 return
 
             # caplen is actual length, len is reported
@@ -439,11 +452,22 @@ class Gen(PcapGen):
                 # print("Header size: %lu" % (usb_urb_sz,))
                 print_urb(self.urb)
 
+            # Success is almost universally 0
+            # However: https://github.com/JohnDMcMaster/usbrply/issues/70
+            if self.urb.irp_status > 0:
+                self.gwarning("packet %s: suspicious irp_status %d (0x%08X)" %
+                              (self.pktn_str(), self.urb.irp_status,
+                               self.urb.irp_status))
+
             if urb_error(self.urb):
-                self.errors + 1
-                if self.arg_halt:
-                    print("oh noes!")
-                    sys.exit(1)
+                # Need to treat this as a warning for now
+                # https://github.com/JohnDMcMaster/usbrply/issues/70
+                # self.bad_packet(packet,
+                #                "bad irp_status %d (0x%08X)" % (self.urb.irp_status, 0x100000000 + self.urb.irp_status))
+                # return
+                self.gwarning("packet %s: bad irp_status %d (0x%08X)" %
+                              (self.pktn_str(), self.urb.irp_status,
+                               0x100000000 + self.urb.irp_status))
 
             # Complete?
             # May be "out" or "status"

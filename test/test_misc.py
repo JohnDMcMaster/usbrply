@@ -177,6 +177,28 @@ class TestCase(unittest.TestCase):
             run_printers_json("test/data/win_control-out.pcapng", self.argsj))
         assert packet["data"]
 
+    def test_win_positive_irp_status(self):
+        """
+        Code was failing irp's that had non-0 irp_status
+        While success is typically 0, it's not strictly required
+        """
+        usbrply.printers.run("libusb-py",
+                             usbrply.parsers.pcap2json(
+                                 "test/data/win_irp-status-120.pcapng",
+                                 argsj=self.argsj),
+                             argsj=self.argsj)
+
+    def test_win_negative_irp_status(self):
+        """
+        FML
+        https://github.com/JohnDMcMaster/usbrply/issues/70
+        """
+        usbrply.printers.run("libusb-py",
+                             usbrply.parsers.pcap2json(
+                                 "test/data/win_irp-status-neg.pcapng",
+                                 argsj=self.argsj),
+                             argsj=self.argsj)
+
     """
     Linux
     """

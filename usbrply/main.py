@@ -54,7 +54,7 @@ def main():
                  '--define',
                  default=False,
                  help='Use defines instead of raw numbers')
-    add_bool_arg(parser, '--halt', default=True, help='Halt on errors')
+    add_bool_arg(parser, '--halt', default=True, help='Halt on bad packets')
     parser.add_argument('--vid',
                         type=str,
                         default="0",
