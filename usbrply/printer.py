@@ -39,6 +39,10 @@ def indented(s):
     print("%s%s" % (indent, s), file=print_file)
 
 
+def get_indent():
+    return indent
+
+
 class Printer(object):
     def __init__(self, argsj):
         self.argsj = argsj

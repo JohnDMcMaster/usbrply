@@ -20,7 +20,7 @@ def main():
                         dest='ofmt',
                         action='store_const',
                         const='libusb-c',
-                        help='output libusb')
+                        help='output libusb C')
     parser.add_argument('-p',
                         dest='ofmt',
                         action='store_const',
