@@ -37,6 +37,7 @@ USBD_STATUS_120_OK = 120
 
 # https://msdn.microsoft.com/en-us/library/windows/hardware/ff540409(v=vs.85).aspx
 # https://github.com/wine-mirror/wine/blob/master/include/ddk/usb.h
+URB_FUNCTION_ABORT_PIPE = 0x02
 URB_FUNCTION_CONTROL_TRANSFER = 0x08
 URB_FUNCTION_VENDOR_DEVICE = 0x17
 
@@ -360,6 +361,29 @@ class Gen(PcapGen):
             print(msg)
             hexdump(packet)
 
+    def process_submit(self, dat_cur):
+        # Find the matching submit request
+        if self.urb.transfer_type == URB_CONTROL:
+            self.processControlSubmit(dat_cur)
+        elif self.urb.transfer_type == URB_BULK:
+            self.processBulkSubmit(dat_cur)
+        elif self.urb.transfer_type == URB_INTERRUPT:
+            self.processGenericSubmit(dat_cur)
+            self.printv('Added pending interrupt URB %s' % self.urb.id)
+        # Pipe stall magic
+        # FDO2PDO w/ URB_TRANSFER_IN
+        # https://github.com/JohnDMcMaster/usbrply/issues/71
+        elif self.urb.transfer_type == USB_IRP_INFO:
+            self.processGenericSubmit(dat_cur)
+            self.printv('Added pending IRP info URB %s' % self.urb.id)
+        elif func_str(self.urb.usb_func) == "ABORT_PIPE":
+            self.processGenericSubmit(dat_cur)
+            self.printv('Added pending IRP info URB %s' % self.urb.id)
+        else:
+            self.processGenericSubmit(dat_cur)
+            self.gwarning("packet %s: unhandled transfer_type 0x%02X" %
+                          (self.pktn_str(), self.urb.transfer_type))
+
     def loop_cb(self, caplen, packet, ts):
         """
         2020-12-22
@@ -481,23 +505,10 @@ class Gen(PcapGen):
                     self.process_complete(dat_cur)
             # Otherwise submit
             else:
-                # Find the matching submit request
-                if self.urb.transfer_type == URB_CONTROL:
-                    self.processControlSubmit(dat_cur)
-                elif self.urb.transfer_type == URB_BULK:
-                    self.processBulkSubmit(dat_cur)
-                elif self.urb.transfer_type == URB_INTERRUPT:
-                    self.processInterruptSubmit(dat_cur)
-                # Pipe stall magic
-                # FDO2PDO w/ URB_TRANSFER_IN
-                # https://github.com/JohnDMcMaster/usbrply/issues/71
-                elif self.urb.transfer_type == USB_IRP_INFO:
-                    self.processIrpInfoSubmit(dat_cur)
-                else:
-                    self.gwarning("packet %s: unhandled transfer_type 0x%02X" %
-                                  (self.pktn_str(), self.urb.transfer_type))
+                self.process_submit(dat_cur)
 
-            assert len(self.pcomments) == 0
+            assert len(self.pcomments) == 0, ("Packet comments but no packets",
+                                              self.pcomments)
             self.submit = None
             self.urb = None
         except:
@@ -551,9 +562,11 @@ class Gen(PcapGen):
                 self.processInterruptCompleteOut(dat_cur)
         elif self.urb.transfer_type == USB_IRP_INFO:
             self.processIrpInfoComplete(dat_cur)
+        elif func_str(self.urb.usb_func) == "ABORT_PIPE":
+            self.processAbortPipe(dat_cur)
         else:
-            self.verbose and print(
-                "WARNING: unknown transfer type %u" % self.urb.transfer_type)
+            self.pwarning("unknown transfer type %u" % self.urb.transfer_type)
+            self.processUnknownComplete(dat_cur)
 
     def processControlSubmit(self, dat_cur):
         pending = PendingRX()
@@ -702,23 +715,13 @@ class Gen(PcapGen):
             'data': bytes2Hex(dat_cur)
         })
 
-    def processInterruptSubmit(self, dat_cur):
+    def processGenericSubmit(self, dat_cur):
         pending = PendingRX()
         pending.raw = self.urb_raw
         pending.urb = self.urb
         pending.urbts = self.urbts
         pending.packet_number = self.pktn_str()
         self.pending_complete[self.urb.id] = pending
-        self.printv('Added pending interrupt URB %s' % self.urb.id)
-
-    def processIrpInfoSubmit(self, dat_cur):
-        pending = PendingRX()
-        pending.raw = self.urb_raw
-        pending.urb = self.urb
-        pending.urbts = self.urbts
-        pending.packet_number = self.pktn_str()
-        self.pending_complete[self.urb.id] = pending
-        self.printv('Added pending IRP info URB %s' % self.urb.id)
 
     def processIrpInfoComplete(self, dat_cur):
         # assume 0 size for now
@@ -727,7 +730,16 @@ class Gen(PcapGen):
 
         self.output_packet({
             'type': 'irpInfo',
-            'endp': self.submit.urb.endpoint
+        })
+
+    def processAbortPipe(self, dat_cur):
+        self.output_packet({
+            'type': 'abortPipe',
+        })
+
+    def processUnknownComplete(self, dat_cur):
+        self.output_packet({
+            'type': 'unknown',
         })
 
     def processInterruptCompleteOut(self, dat_cur):

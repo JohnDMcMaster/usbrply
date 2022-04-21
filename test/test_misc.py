@@ -120,6 +120,18 @@ class TestCase(unittest.TestCase):
                                  argsj=self.argsj),
                              argsj=self.argsj)
 
+        usbrply.printers.run("libusb-py",
+                             usbrply.parsers.pcap2json(
+                                 "test/data/win_abort-pipe.pcapng",
+                                 argsj=self.argsj),
+                             argsj=self.argsj)
+
+        usbrply.printers.run("libusb-py",
+                             usbrply.parsers.pcap2json(
+                                 "test/data/win_pipe-stall.pcapng",
+                                 argsj=self.argsj),
+                             argsj=self.argsj)
+
     def test_win_interrupt(self):
         usbrply.printers.run("json",
                              usbrply.parsers.pcap2json(
