@@ -212,15 +212,11 @@ usb_urb_win_fmt = (
     'I'  # data_length
 )
 
-#print 'WARNING: experimental windows mode activated'
-usb_urb_nt = usb_urb_win_nt
-usb_urb_fmt = usb_urb_win_fmt
-
-usb_urb_sz = struct.calcsize(usb_urb_fmt)
+usb_urb_sz = struct.calcsize(usb_urb_win_fmt)
 
 
 def usb_urb(s):
-    return usb_urb_nt(*struct.unpack(usb_urb_fmt, bytes(s)))
+    return usb_urb_win_nt(*struct.unpack(usb_urb_win_fmt, bytes(s)))
 
 
 # When we get an IN request we may process packets in between
@@ -291,6 +287,14 @@ def print_urb(urb):
     print(" endpoint: 0x%02X" % (urb.endpoint, ))
     print(" transfer_type: %s" % (urb.transfer_type, ))
     print(" data_length: %s" % (urb.data_length, ))
+
+
+def urb_add_str(urb):
+    ret = dict(urb)
+    ret["id_str"] = urb_id_str(urb["id"])
+    ret["usb_func_str"] = func_str(urb["usb_func"])
+    ret["irp_info_str"] = irp_info_str(urb["irp_info"])
+    return ret
 
 
 def urb2json(urb):
@@ -377,8 +381,6 @@ class Gen(PcapGen):
         try:
             packet = bytearray(packet)
             self.cur_packn += 1
-            #if self.cur_packn >= 871:
-            #    self.verbose = True
 
             if self.cur_packn < self.min_packet or self.cur_packn > self.max_packet:
                 # print("# Skipping packet %d" % (self.cur_packn))
@@ -394,9 +396,7 @@ class Gen(PcapGen):
                               self.pktn_str(), caplen, len(packet))
                 return
             if self.verbose:
-                # print('Len: %d' % len(packet))
                 hexdump(packet)
-                #print(ts)
                 print('Pending (%d):' % (len(self.pending_complete), ))
                 for k in self.pending_complete:
                     print('  %s' % (urb_id_str(k), ))
@@ -479,7 +479,7 @@ class Gen(PcapGen):
                             (self.pktn_str(), self.urb.id))
                 else:
                     self.process_complete(dat_cur)
-            # Oterhwise submit
+            # Otherwise submit
             else:
                 # Find the matching submit request
                 if self.urb.transfer_type == URB_CONTROL:
@@ -488,6 +488,14 @@ class Gen(PcapGen):
                     self.processBulkSubmit(dat_cur)
                 elif self.urb.transfer_type == URB_INTERRUPT:
                     self.processInterruptSubmit(dat_cur)
+                # Pipe stall magic
+                # FDO2PDO w/ URB_TRANSFER_IN
+                # https://github.com/JohnDMcMaster/usbrply/issues/71
+                elif self.urb.transfer_type == USB_IRP_INFO:
+                    self.processIrpInfoSubmit(dat_cur)
+                else:
+                    self.gwarning("packet %s: unhandled transfer_type 0x%02X" %
+                                  (self.pktn_str(), self.urb.transfer_type))
 
             assert len(self.pcomments) == 0
             self.submit = None
@@ -541,6 +549,8 @@ class Gen(PcapGen):
                 self.processInterruptCompleteIn(dat_cur)
             else:
                 self.processInterruptCompleteOut(dat_cur)
+        elif self.urb.transfer_type == USB_IRP_INFO:
+            self.processIrpInfoComplete(dat_cur)
         else:
             self.verbose and print(
                 "WARNING: unknown transfer type %u" % self.urb.transfer_type)
@@ -623,13 +633,13 @@ class Gen(PcapGen):
         assert self.submit.urbts is not None
         j["submit"] = {
             "packn": nsub,
-            'urb': urbj_submit,
+            'urb': urb_add_str(urbj_submit),
             't': self.submit.urbts,
         }
         assert self.urbts is not None
         j["complete"] = {
             'packn': ncomplete,
-            'urb': urbj_complete,
+            'urb': urb_add_str(urbj_complete),
             't': self.urbts,
         }
         if len(self.pcomments):
@@ -700,6 +710,25 @@ class Gen(PcapGen):
         pending.packet_number = self.pktn_str()
         self.pending_complete[self.urb.id] = pending
         self.printv('Added pending interrupt URB %s' % self.urb.id)
+
+    def processIrpInfoSubmit(self, dat_cur):
+        pending = PendingRX()
+        pending.raw = self.urb_raw
+        pending.urb = self.urb
+        pending.urbts = self.urbts
+        pending.packet_number = self.pktn_str()
+        self.pending_complete[self.urb.id] = pending
+        self.printv('Added pending IRP info URB %s' % self.urb.id)
+
+    def processIrpInfoComplete(self, dat_cur):
+        # assume 0 size for now
+        assert self.submit.urb.data_length == 0
+        assert len(dat_cur) == 0
+
+        self.output_packet({
+            'type': 'irpInfo',
+            'endp': self.submit.urb.endpoint
+        })
 
     def processInterruptCompleteOut(self, dat_cur):
         # looks like maybe windows doesn't report the request size?

@@ -6,6 +6,8 @@ URB_ISOCHRONOUS = 0x0
 URB_INTERRUPT = 0x1
 URB_CONTROL = 0x2
 URB_BULK = 0x3
+# Wireshark GUI's name
+USB_IRP_INFO = 0xFE
 '''
 possible event type
 '''

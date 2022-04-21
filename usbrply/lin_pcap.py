@@ -314,6 +314,9 @@ class Gen(PcapGen):
                 self.processBulkSubmit(dat_cur)
             elif self.urb.transfer_type == URB_INTERRUPT:
                 self.processInterruptSubmit(dat_cur)
+            else:
+                self.gwarning("packet %s: unhandled type 0x%02X" %
+                              (self.pktn_str(), self.urb.type))
 
         # Should have either generated no comments or attached them
         assert len(self.pcomments) == 0, ("unhandled comment", self.pcomments)
