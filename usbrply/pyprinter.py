@@ -222,6 +222,11 @@ if __name__ == "__main__":
         elif d["type"] == "interruptOut":
             data_str = bytes2AnonArray(binascii.unhexlify(d["data"]))
             indented("interruptWrite(0x%02X, %s)" % (d["endp"], data_str))
+        elif d["type"] == "irpInfo":
+            comment("IRP_INFO(): func %s" %
+                    (d["submit"]["urb"]["usb_func_str"], ))
+        elif d["type"] == "abortPipe":
+            comment("ABORT_PIPE()")
         else:
             if self.verbose:
                 print("LibusbPyPrinter WARNING: dropping %s" % (d["type"], ))

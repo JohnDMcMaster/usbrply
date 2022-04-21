@@ -28,10 +28,16 @@ XFER_DATA = 1
 # Usb function: URB_FUNCTION_CONTROL_TRANSFER (0x08)
 XFER_STATUS = 2
 
+# https://github.com/tpn/winsdk-10/blob/master/Include/10.0.14393.0/shared/usb.h
 USBD_STATUS_SUCCESS = 0
+# https://github.com/JohnDMcMaster/usbrply/issues/70
+# Not really sure what this is (not in sdk's usb.h), but packet flow looks ok
+# FTDI device's GET_DESCRIPTOR
+USBD_STATUS_120_OK = 120
 
 # https://msdn.microsoft.com/en-us/library/windows/hardware/ff540409(v=vs.85).aspx
 # https://github.com/wine-mirror/wine/blob/master/include/ddk/usb.h
+URB_FUNCTION_ABORT_PIPE = 0x02
 URB_FUNCTION_CONTROL_TRANSFER = 0x08
 URB_FUNCTION_VENDOR_DEVICE = 0x17
 
@@ -197,7 +203,7 @@ usb_urb_win_fmt = (
     '<'
     'H'  # pcap_hdr_len
     'Q'  # irp_id
-    'I'  # irp_status
+    'i'  # irp_status
     'H'  # usb_func
     'B'  # irp_info
     'H'  # bus_id
@@ -207,15 +213,11 @@ usb_urb_win_fmt = (
     'I'  # data_length
 )
 
-#print 'WARNING: experimental windows mode activated'
-usb_urb_nt = usb_urb_win_nt
-usb_urb_fmt = usb_urb_win_fmt
-
-usb_urb_sz = struct.calcsize(usb_urb_fmt)
+usb_urb_sz = struct.calcsize(usb_urb_win_fmt)
 
 
 def usb_urb(s):
-    return usb_urb_nt(*struct.unpack(usb_urb_fmt, bytes(s)))
+    return usb_urb_win_nt(*struct.unpack(usb_urb_win_fmt, bytes(s)))
 
 
 # When we get an IN request we may process packets in between
@@ -288,6 +290,14 @@ def print_urb(urb):
     print(" data_length: %s" % (urb.data_length, ))
 
 
+def urb_add_str(urb):
+    ret = dict(urb)
+    ret["id_str"] = urb_id_str(urb["id"])
+    ret["usb_func_str"] = func_str(urb["usb_func"])
+    ret["irp_info_str"] = irp_info_str(urb["irp_info"])
+    return ret
+
+
 def urb2json(urb):
     j = dict(urb._asdict())
     #j["ctrlrequest"] = binascii.hexlify(j["ctrlrequest"])
@@ -297,7 +307,10 @@ def urb2json(urb):
 
 
 def urb_error(urb):
-    return urb.irp_status != USBD_STATUS_SUCCESS
+    # return urb.irp_status != USBD_STATUS_SUCCESS
+    # https://github.com/tpn/winsdk-10/blob/master/Include/10.0.14393.0/shared/usb.h#L266
+    # #define USBD_ERROR(Status) ((USBD_STATUS)(Status) < 0)
+    return urb.irp_status < 0
 
 
 def is_urb_submit(urb):
@@ -337,6 +350,40 @@ class Gen(PcapGen):
     def platform(self):
         return "windows"
 
+    def bad_packet(self, packet, msg):
+        msg = "Packet %s: %s" % (self.pktn_str(), msg)
+
+        self.errors += 1
+        if self.arg_halt:
+            hexdump(packet)
+            raise ValueError(msg)
+        if self.verbose:
+            print(msg)
+            hexdump(packet)
+
+    def process_submit(self, dat_cur):
+        # Find the matching submit request
+        if self.urb.transfer_type == URB_CONTROL:
+            self.processControlSubmit(dat_cur)
+        elif self.urb.transfer_type == URB_BULK:
+            self.processBulkSubmit(dat_cur)
+        elif self.urb.transfer_type == URB_INTERRUPT:
+            self.processGenericSubmit(dat_cur)
+            self.printv('Added pending interrupt URB %s' % self.urb.id)
+        # Pipe stall magic
+        # FDO2PDO w/ URB_TRANSFER_IN
+        # https://github.com/JohnDMcMaster/usbrply/issues/71
+        elif self.urb.transfer_type == USB_IRP_INFO:
+            self.processGenericSubmit(dat_cur)
+            self.printv('Added pending IRP info URB %s' % self.urb.id)
+        elif func_str(self.urb.usb_func) == "ABORT_PIPE":
+            self.processGenericSubmit(dat_cur)
+            self.printv('Added pending IRP info URB %s' % self.urb.id)
+        else:
+            self.processGenericSubmit(dat_cur)
+            self.gwarning("packet %s: unhandled transfer_type 0x%02X" %
+                          (self.pktn_str(), self.urb.transfer_type))
+
     def loop_cb(self, caplen, packet, ts):
         """
         2020-12-22
@@ -358,8 +405,6 @@ class Gen(PcapGen):
         try:
             packet = bytearray(packet)
             self.cur_packn += 1
-            #if self.cur_packn >= 871:
-            #    self.verbose = True
 
             if self.cur_packn < self.min_packet or self.cur_packn > self.max_packet:
                 # print("# Skipping packet %d" % (self.cur_packn))
@@ -375,24 +420,16 @@ class Gen(PcapGen):
                               self.pktn_str(), caplen, len(packet))
                 return
             if self.verbose:
-                # print('Len: %d' % len(packet))
                 hexdump(packet)
-                #print(ts)
                 print('Pending (%d):' % (len(self.pending_complete), ))
                 for k in self.pending_complete:
                     print('  %s' % (urb_id_str(k), ))
 
             self.printv("Length %u" % (len(packet), ))
             if len(packet) < usb_urb_sz:
-                msg = "Packet %s: size %d is not min size %d" % (
-                    self.pktn_str(), len(packet), usb_urb_sz)
-                self.errors += 1
-                if self.arg_halt:
-                    hexdump(packet)
-                    raise ValueError(msg)
-                if self.verbose:
-                    print(msg)
-                    hexdump(packet)
+                self.bad_packet(
+                    packet,
+                    "size %d is not min size %d" % (len(packet), usb_urb_sz))
                 return
 
             # caplen is actual length, len is reported
@@ -439,11 +476,22 @@ class Gen(PcapGen):
                 # print("Header size: %lu" % (usb_urb_sz,))
                 print_urb(self.urb)
 
+            # Success is almost universally 0
+            # However: https://github.com/JohnDMcMaster/usbrply/issues/70
+            if self.urb.irp_status > 0:
+                self.gwarning("packet %s: suspicious irp_status %d (0x%08X)" %
+                              (self.pktn_str(), self.urb.irp_status,
+                               self.urb.irp_status))
+
             if urb_error(self.urb):
-                self.errors + 1
-                if self.arg_halt:
-                    print("oh noes!")
-                    sys.exit(1)
+                # Need to treat this as a warning for now
+                # https://github.com/JohnDMcMaster/usbrply/issues/70
+                # self.bad_packet(packet,
+                #                "bad irp_status %d (0x%08X)" % (self.urb.irp_status, 0x100000000 + self.urb.irp_status))
+                # return
+                self.gwarning("packet %s: bad irp_status %d (0x%08X)" %
+                              (self.pktn_str(), self.urb.irp_status,
+                               0x100000000 + self.urb.irp_status))
 
             # Complete?
             # May be "out" or "status"
@@ -455,17 +503,12 @@ class Gen(PcapGen):
                             (self.pktn_str(), self.urb.id))
                 else:
                     self.process_complete(dat_cur)
-            # Oterhwise submit
+            # Otherwise submit
             else:
-                # Find the matching submit request
-                if self.urb.transfer_type == URB_CONTROL:
-                    self.processControlSubmit(dat_cur)
-                elif self.urb.transfer_type == URB_BULK:
-                    self.processBulkSubmit(dat_cur)
-                elif self.urb.transfer_type == URB_INTERRUPT:
-                    self.processInterruptSubmit(dat_cur)
+                self.process_submit(dat_cur)
 
-            assert len(self.pcomments) == 0
+            assert len(self.pcomments) == 0, ("Packet comments but no packets",
+                                              self.pcomments)
             self.submit = None
             self.urb = None
         except:
@@ -517,9 +560,13 @@ class Gen(PcapGen):
                 self.processInterruptCompleteIn(dat_cur)
             else:
                 self.processInterruptCompleteOut(dat_cur)
+        elif self.urb.transfer_type == USB_IRP_INFO:
+            self.processIrpInfoComplete(dat_cur)
+        elif func_str(self.urb.usb_func) == "ABORT_PIPE":
+            self.processAbortPipe(dat_cur)
         else:
-            self.verbose and print(
-                "WARNING: unknown transfer type %u" % self.urb.transfer_type)
+            self.pwarning("unknown transfer type %u" % self.urb.transfer_type)
+            self.processUnknownComplete(dat_cur)
 
     def processControlSubmit(self, dat_cur):
         pending = PendingRX()
@@ -599,13 +646,13 @@ class Gen(PcapGen):
         assert self.submit.urbts is not None
         j["submit"] = {
             "packn": nsub,
-            'urb': urbj_submit,
+            'urb': urb_add_str(urbj_submit),
             't': self.submit.urbts,
         }
         assert self.urbts is not None
         j["complete"] = {
             'packn': ncomplete,
-            'urb': urbj_complete,
+            'urb': urb_add_str(urbj_complete),
             't': self.urbts,
         }
         if len(self.pcomments):
@@ -668,14 +715,32 @@ class Gen(PcapGen):
             'data': bytes2Hex(dat_cur)
         })
 
-    def processInterruptSubmit(self, dat_cur):
+    def processGenericSubmit(self, dat_cur):
         pending = PendingRX()
         pending.raw = self.urb_raw
         pending.urb = self.urb
         pending.urbts = self.urbts
         pending.packet_number = self.pktn_str()
         self.pending_complete[self.urb.id] = pending
-        self.printv('Added pending interrupt URB %s' % self.urb.id)
+
+    def processIrpInfoComplete(self, dat_cur):
+        # assume 0 size for now
+        assert self.submit.urb.data_length == 0
+        assert len(dat_cur) == 0
+
+        self.output_packet({
+            'type': 'irpInfo',
+        })
+
+    def processAbortPipe(self, dat_cur):
+        self.output_packet({
+            'type': 'abortPipe',
+        })
+
+    def processUnknownComplete(self, dat_cur):
+        self.output_packet({
+            'type': 'unknown',
+        })
 
     def processInterruptCompleteOut(self, dat_cur):
         # looks like maybe windows doesn't report the request size?

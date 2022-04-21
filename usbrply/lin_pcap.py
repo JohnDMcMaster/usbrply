@@ -240,6 +240,18 @@ class Gen(PcapGen):
 
         self.arg_device = max(self.arg_device, self.urb.device)
 
+    def process_submit(self, dat_cur):
+        # Find the matching submit request
+        if self.urb.transfer_type == URB_CONTROL:
+            self.processControlSubmit(dat_cur)
+        elif self.urb.transfer_type == URB_BULK:
+            self.processBulkSubmit(dat_cur)
+        elif self.urb.transfer_type == URB_INTERRUPT:
+            self.processInterruptSubmit(dat_cur)
+        else:
+            self.gwarning("packet %s: unhandled type 0x%02X" %
+                          (self.pktn_str(), self.urb.type))
+
     def loop_cb(self, caplen, packet, ts):
         packet = bytearray(packet)
         self.cur_packn += 1
@@ -307,16 +319,11 @@ class Gen(PcapGen):
                                       self.urb, dat_cur)
 
         elif self.urb.type == URB_SUBMIT:
-            # Find the matching submit request
-            if self.urb.transfer_type == URB_CONTROL:
-                self.processControlSubmit(dat_cur)
-            elif self.urb.transfer_type == URB_BULK:
-                self.processBulkSubmit(dat_cur)
-            elif self.urb.transfer_type == URB_INTERRUPT:
-                self.processInterruptSubmit(dat_cur)
+            self.process_submit(dat_cur)
 
         # Should have either generated no comments or attached them
-        assert len(self.pcomments) == 0, ("unhandled comment", self.pcomments)
+        assert len(self.pcomments) == 0, ("Packet comments but no packets",
+                                          self.pcomments)
         self.submit = None
         self.urb = None
 
@@ -367,9 +374,9 @@ class Gen(PcapGen):
                 else:
                     self.processInterruptCompleteOut(dat_cur)
             else:
-                if self.verbose:
-                    print("WARNING: unhandled transfer type %s" %
-                          (self.urb.transfer_type == URB_INTERRUPT, ))
+                self.pwarning("unknown transfer type %u" %
+                              self.urb.transfer_type)
+                self.processUnknownComplete(dat_cur)
 
         if self.urb.id in self.pending_complete:
             del self.pending_complete[self.urb.id]
@@ -620,4 +627,9 @@ class Gen(PcapGen):
             'endp': self.submit.urb.endpoint,
             'len': data_size,
             'data': bytes2Hex(dat_cur)
+        })
+
+    def processUnknownComplete(self, dat_cur):
+        self.output_packet({
+            'type': 'unknown',
         })
