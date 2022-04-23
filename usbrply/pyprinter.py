@@ -111,8 +111,6 @@ def open_dev(usbcontext=None):
         vid = udev.getVendorID()
         pid = udev.getProductID()
         if (vid, pid) == (''' + "0x%04X, 0x%04X" % (self.vid, self.pid) + '''):
-            print("")
-            print("")
             print('Found device')
             print('Bus %03i Device %03i: ID %04x:%04x' % (
                 udev.getBusNumber(),

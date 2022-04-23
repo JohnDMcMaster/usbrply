@@ -18,10 +18,13 @@ def bytes2AnonArray(buf):
 
     ret = "(char[]){"
 
-    for start in range(0, len(buf), 16):
+    chunk_size = 16
+    for start in range(0, len(buf), chunk_size):
         # Break up long line
-        if start:
-            ret += "\n" + get_indent()
+        if len(buf) > chunk_size:
+            if start:
+                ret += ","
+            ret += "\n        " + get_indent()
         nums = ["0x%02X" % x for x in buf[start:start + 16]]
         ret += ", ".join(nums)
     return ret + "}"
@@ -54,29 +57,56 @@ class LibusbCPrinter(Printer):
         self.argsj = argsj
 
     def print_imports(self):
-        assert 0, "FIXME"
         print('''\
+/*
+Ubuntu quick start:
+sudo apt-get install -y libusb-1.0-0-dev
+usbrply -l --wrapper my.pcapng ->main.c
+gcc -I/usr/include/libusb-1.0 main.c -lusb-1.0
+./main
+*/
 #include <stdio.h>
 #include <string.h>
-#include "libusb.h"
+#include <libusb.h>
+''',
+              file=printer.print_file)
+
+    def print_macros(self):
+        print('''\
+//Automatically calculate expected buffer size
+#define VALIDATE_READ(expected, actual, actual_size, msg) \
+        validate_read(expected, sizeof(expected), actual, actual_size, msg)
+#define RET_ON_ERR(_x) do { usbret = _x; if (usbret < 0) { return usbret; } } while(0)
 ''',
               file=printer.print_file)
 
     def print_wrapper_header(self):
         print('''\
-int validate_read(const uint8_t *expected, const uint8_t *actual, const char *msg):
-    if expected != actual:
-        printf("Failed %s\n" % msg)
-        printf("  Expected; %s\n" % hexlify(expected,))
-        printf("  Actual:   %s\n" % hexlify(actual,))
+const char *hexlify(const void *buf, size_t size) {
+    //FIXME
+    return NULL;
+}
+
+int validate_read(const uint8_t *expected, size_t expected_size, const uint8_t *actual, size_t actual_size, const char *msg) {
+    if (expected_size != actual_size || memcmp(expected, actual, expected_size)) {
+        printf("Failed %s\\n", msg);
+        //printf("  Expected; %s\\n", hexlify(expected, expected_size));
+        //printf("  Actual:   %s\\n", hexlify(actual, actual_size));
+        return -1;
+    }
+    return 0;
+}
 
 ''',
               file=printer.print_file)
-        print('int replay(libusb_device *dev) {', file=printer.print_file)
+        print('int replay(libusb_device_handle *devh) {',
+              file=printer.print_file)
         indent_inc()
         print('''\
-    int n_rw = 0;
-    uint8_t buff[4096];
+    //Error and/or size
+    int usbret = 0;
+    //XXX: size this automatically / better? Just be big for now
+    uint8_t buff[16384];
     (void)buff;
     int timeout = 0;
 ''',
@@ -88,56 +118,97 @@ int validate_read(const uint8_t *expected, const uint8_t *actual, const char *ms
         indented("")
 
         if self.wrapper:
-            assert 0, "FIXME"
             self.print_imports()
             print("", file=printer.print_file)
+            self.print_macros()
+            print("", file=printer.print_file)
             self.print_wrapper_header()
+        else:
+            self.print_macros()
+        print("", file=printer.print_file)
 
     def footer(self):
-        assert 0, "FIXME"
         if not self.wrapper:
             return
         print('''
-int open_dev(void *usbcontext):
-    if usbcontext is None:
-        usbcontext = usb1.USBContext()
+}
 
-    struct libusb_device **list;
-    ssize_t count = libusb_get_device_list(usb_ctx, &list);
+static struct libusb_device_handle *get_device(struct libusb_context *usb_ctx, uint16_t vid, uint16_t pid) {
+    struct libusb_device **devices = NULL;
+    ssize_t count = 0;
+
+    count = libusb_get_device_list(usb_ctx, &devices);
     if (count < 0) {
-        msg_perr("Getting the USB device list failed (%s)!\n", libusb_error_name(count));
+        printf("Error getting device list: %ld (%s)\\n", count, libusb_error_name(count));
         return NULL;
     }
 
-    
-    print('Scanning for devices...')
-    for udev in usbcontext.getDeviceList(skip_on_error=True):
-        vid = udev.getVendorID()
-        pid = udev.getProductID()
-        if (vid, pid) == (''' + "0x%04X, 0x%04X" % (self.vid, self.pid) + '''):
-            print("")
-            print("")
-            print('Found device')
-            print('Bus %03i Device %03i: ID %04x:%04x' % (
-                udev.getBusNumber(),
-                udev.getDeviceAddress(),
-                vid,
-                pid))
-            return udev.open()
-    raise Exception("Failed to find a device")
+    printf("Scanning for devices...\\n");
+    for (int devi = 0; devi < count; ++devi) {
+        struct libusb_device *dev = devices[devi];
+        struct libusb_device_descriptor desc;
+        struct libusb_device_handle *devh = NULL;
+        int usbret;
 
-if __name__ == "__main__":
-    import argparse 
-    
-    parser = argparse.ArgumentParser(description='Replay captured USB packets')
-    args = parser.parse_args()
+        usbret = libusb_get_device_descriptor(dev, &desc);
+        if (usbret != 0) {
+            printf("Error reading device descriptor: %d (%s)\\n", usbret, libusb_error_name(usbret));
+            libusb_free_device_list(devices, 1);
+            return NULL;
+        }
+        if (desc.idVendor == vid && desc.idProduct == pid) {
+            printf("Found device\\n");
+            printf("Bus %03i Device %03i: ID %04x:%04x\\n",
+                libusb_get_bus_number(dev), libusb_get_device_address(dev),
+                desc.idVendor, desc.idProduct);
+            usbret = libusb_open(dev, &devh);
+            if (usbret != 0) {
+                printf("Error opening device: %d (%s)\\n", usbret, libusb_error_name(usbret));
+                libusb_free_device_list(devices, 1);
+                return NULL;
+            }
+            libusb_free_device_list(devices, 1);
+            return devh;
+        }
+    }
+    printf("Failed to find USB device\\n");
+    libusb_free_device_list(devices, 1);
+    return NULL;
+}
 
-    usbcontext = usb1.USBContext()
-    dev = open_dev(usbcontext)
-    dev.claimInterface(0)
-    dev.resetDevice()
-    replay(dev)
+int main(int argc, char **argv) {
+    struct libusb_context *usb_ctx = NULL;
+    libusb_device_handle *devh= NULL;
+    uint16_t vid = ''' + "0x%04X" % self.vid + ''';
+    uint16_t pid = ''' + "0x%04X" % self.pid + ''';
+    int err;
 
+    int ret = libusb_init(&usb_ctx);
+    if (ret < 0 || usb_ctx == NULL) {
+        printf("Error initializing libusb: %s\\n", libusb_error_name(ret));
+        return 1;
+    }
+    devh = get_device(usb_ctx, vid, pid);
+
+    /*
+    err = libusb_set_configuration(devh, 1);
+    if (err != 0) {
+        printf("Error setting configuration: %d (%s)\\n", err, libusb_error_name(err));
+        libusb_close(devh);
+        libusb_exit(usb_ctx);
+        return 1;
+    }
+    */
+    err = libusb_claim_interface(devh, 0);
+    if (err < 0) {
+        printf("Error claiming interface: %d (%s)\\n", err, libusb_error_name(err));
+        libusb_close(devh);
+        libusb_exit(usb_ctx);
+        return 1;
+    }
+    //dev.resetDevice()
+    replay(devh);
+}
 ''',
               file=printer.print_file)
 
@@ -181,31 +252,30 @@ if __name__ == "__main__":
                 data = "NULL"
 
             indented(
-                "n_rw = libusb_control_transfer(dev, 0x%02X, 0x%02X, 0x%04X, 0x%04X, %s, 0x%04X, timeout)"
+                "RET_ON_ERR(libusb_control_transfer(devh, 0x%02X, 0x%02X, 0x%04X, 0x%04X, %s, 0x%04X, timeout));"
                 % (d["bRequestType"], d["bRequest"], d["wValue"], d["wIndex"],
                    data, d["wLength"]))
-            # validate_read((char[]){0x05, 0x40, 0x07, 0x3A}, 4, buff, n_rw, "packet 1/2");
             indented(
-                "if (n_rw < 0 || validate_read(%s, buff, \"%s\")) { return n_rw; }"
-                % (
+                "RET_ON_ERR(validate_read(%s, %u, buff, usbret, \"%s\"));" % (
                     bytes2AnonArray(binascii.unhexlify(d["data"])),
+                    len(d["data"]),
                     packet_numbering,
                 ))
         elif d["type"] == "controlWrite":
             data = bytes2AnonArray(binascii.unhexlify(
                 d["data"])) if d["data"] else "NULL"
             indented(
-                "n_rw = libusb_control_transfer(dev, 0x%02X, 0x%02X, 0x%04X, 0x%04X, %s, 0x%04X, timeout)"
+                "RET_ON_ERR(libusb_control_transfer(devh, 0x%02X, 0x%02X, 0x%04X, 0x%04X, %s, 0x%04X, timeout));"
                 % (d["bRequestType"], d["bRequest"], d["wValue"], d["wIndex"],
                    data, len(d["data"])))
-            indented("if (n_rw < 0) { return n_rw; }")
 
         elif d["type"] == "bulkRead":
             assert 0, "fixme"
             data_str = "\"\""
             indented("buff = bulkRead(0x%02X, 0x%04X)" % (d["endp"], d["len"]))
-            indented("validate_read(%s, buff, \"%s\")" % (bytes2AnonArray(
-                binascii.unhexlify(d["data"])), packet_numbering))
+            indented("validate_read(%s, %u, buff, err, \"%s\")" %
+                     (bytes2AnonArray(binascii.unhexlify(
+                         d["data"])), len(d["data"]), packet_numbering))
         elif d["type"] == "bulkWrite":
             assert 0, "fixme"
             # Note that its the submit from earlier, not the ack that we care about

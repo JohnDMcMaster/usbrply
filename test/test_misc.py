@@ -127,11 +127,40 @@ class TestCase(unittest.TestCase):
 
     # FIXME: very basic right now
     def test_cprinter_lin(self):
+        usbrply.printers.run("libusb-c",
+                             usbrply.parsers.pcap2json(
+                                 "test/data/lin_control-out.pcapng",
+                                 argsj=self.argsj),
+                             argsj=self.argsj)
+
+    def test_cprinter_lin_wrapped(self):
+        self.argsj["wrapper"] = True
+        parsed = usbrply.parsers.pcap2json("test/data/lin_misc.pcapng",
+                                           argsj=self.argsj)
+        # filters.append("setup")
+        # filters.append("commenter")
+        filtered = filters.run(["vidpid"], parsed, self.argsj)
+        usbrply.printers.run("libusb-c", filtered, argsj=self.argsj)
+
+    def test_cprinter_win(self):
+        # FIXME: need bulk support
+        return
         usbrply.printers.run(
             "libusb-c",
-            usbrply.parsers.pcap2json("test/data/lin_control-out.pcapng",
+            usbrply.parsers.pcap2json("test/data/win_misc.pcapng",
                                       argsj=self.argsj),
             argsj=self.argsj)
+
+    def test_cprinter_win_wrapped(self):
+        # FIXME: need bulk support
+        return
+        self.argsj["wrapper"] = True
+        parsed = usbrply.parsers.pcap2json("test/data/win_misc.pcapng",
+                                           argsj=self.argsj)
+        # filters.append("setup")
+        # filters.append("commenter")
+        filtered = filters.run(["vidpid"], parsed, self.argsj)
+        usbrply.printers.run("libusb-c", filtered, argsj=self.argsj)
 
     """
     *************************************************************************
