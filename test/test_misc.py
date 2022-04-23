@@ -125,7 +125,14 @@ class TestCase(unittest.TestCase):
     *************************************************************************
     """
 
-    # FIXME
+    # FIXME: very basic right now
+    def test_cprinter_lin(self):
+        usbrply.printers.run(
+            "libusb-c",
+            usbrply.parsers.pcap2json("test/data/lin_control-out.pcapng",
+                                      argsj=self.argsj),
+            argsj=self.argsj)
+
     """
     *************************************************************************
     Windows packet tests
