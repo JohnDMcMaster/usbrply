@@ -56,12 +56,36 @@ class TestCase(unittest.TestCase):
         """Call after every test case."""
         printer.print_file.close()
 
+    def print_all(self, fn):
+        j = parsers.jgen2j(usbrply.parsers.pcap2json(fn, argsj=self.argsj))
+        usbrply.printers.run("libusb-py",
+                             usbrply.parsers.pcap2json(fn, argsj=self.argsj),
+                             argsj=self.argsj)
+        if 0:
+            usbrply.printers.run("libusb-c",
+                                 usbrply.parsers.pcap2json(fn,
+                                                           argsj=self.argsj),
+                                 argsj=self.argsj)
+        return j
+
+    """
+    *************************************************************************
+    misc tests
+    *************************************************************************
+    """
+
     def test_print_json(self):
         usbrply.printers.run(
             "json",
             usbrply.parsers.pcap2json("test/data/lin_misc.pcapng",
                                       argsj=self.argsj),
             argsj=self.argsj)
+
+    """
+    *************************************************************************
+    pyprinter tests
+    *************************************************************************
+    """
 
     def test_print_pyprinter_lin(self):
         usbrply.printers.run(
@@ -96,14 +120,21 @@ class TestCase(unittest.TestCase):
         usbrply.printers.run("libusb-py", filtered, argsj=self.argsj)
 
     """
-    Windows
+    *************************************************************************
+    cprinter tests
+    *************************************************************************
     """
 
-    def test_parse_win_pcap(self):
-        """Windows .pcap parse test"""
-        parsers.jgen2j(
-            usbrply.parsers.pcap2json("test/data/win_misc.pcapng",
-                                      argsj=self.argsj))
+    # FIXME
+    """
+    *************************************************************************
+    Windows packet tests
+    *************************************************************************
+    """
+
+    def test_win_packets(self):
+        """Windows large .pcap parse test"""
+        self.print_all("test/data/win_misc.pcapng")
 
     def test_win_pipes(self):
         """
@@ -114,158 +145,79 @@ class TestCase(unittest.TestCase):
         Not exactly sure what this is but its at the beginning of my test capture
         Normally there?
         """
-        usbrply.printers.run("libusb-py",
-                             usbrply.parsers.pcap2json(
-                                 "test/data/win_setup_pipes.pcapng",
-                                 argsj=self.argsj),
-                             argsj=self.argsj)
+        self.print_all("test/data/win_setup_pipes.pcapng")
+        self.print_all("test/data/win_abort-pipe.pcapng")
+        self.print_all("test/data/win_pipe-stall.pcapng")
 
-        usbrply.printers.run("libusb-py",
-                             usbrply.parsers.pcap2json(
-                                 "test/data/win_abort-pipe.pcapng",
-                                 argsj=self.argsj),
-                             argsj=self.argsj)
-
-        usbrply.printers.run("libusb-py",
-                             usbrply.parsers.pcap2json(
-                                 "test/data/win_pipe-stall.pcapng",
-                                 argsj=self.argsj),
-                             argsj=self.argsj)
-
-    def test_win_interrupt(self):
-        usbrply.printers.run("json",
-                             usbrply.parsers.pcap2json(
-                                 "test/data/win_interrupt.pcapng",
-                                 argsj=self.argsj),
-                             argsj=self.argsj)
+    def test_win_interrupts(self):
+        assert len(
+            find_packets(
+                self.print_all("test/data/win_interrupts.pcapng"))) > 1
 
     def test_win_interrupt_in(self):
-        usbrply.printers.run("json",
-                             usbrply.parsers.pcap2json(
-                                 "test/data/win_interrupt-in.pcapng",
-                                 argsj=self.argsj),
-                             argsj=self.argsj)
+        find_packet(self.print_all("test/data/win_interrupt-in.pcapng"))
 
     def test_win_bulk_out(self):
-        """
-        Verify bulk out parses on Windows
-        """
-        usbrply.printers.run("libusb-py",
-                             usbrply.parsers.pcap2json(
-                                 "test/data/win_bulk-out.pcapng",
-                                 argsj=self.argsj),
-                             argsj=self.argsj)
+        find_packet(self.print_all("test/data/win_bulk-out.pcapng"))
 
     def test_win_bulk_in(self):
-        """
-        Verify bulk in parses on Windows
-        """
-        usbrply.printers.run("libusb-py",
-                             usbrply.parsers.pcap2json(
-                                 "test/data/win_bulk-in.pcapng",
-                                 argsj=self.argsj),
-                             argsj=self.argsj)
+        find_packet(self.print_all("test/data/win_bulk-in.pcapng"))
 
     def test_win_control_in(self):
-        """
-        Verify control in parses on Windows
-        """
-        usbrply.printers.run("libusb-py",
-                             usbrply.parsers.pcap2json(
-                                 "test/data/win_control-in.pcapng",
-                                 argsj=self.argsj),
-                             argsj=self.argsj)
+        find_packet(self.print_all("test/data/win_control-in.pcapng"))
 
     def test_win_control_out(self):
         """
         Verify control out parses on Windows
         """
         packet = find_packet(
-            run_printers_json("test/data/win_control-out_len-0.pcapng",
-                              self.argsj))
+            self.print_all("test/data/win_control-out_len-0.pcapng"))
         assert len(packet["data"]) == 0
 
         packet = find_packet(
-            run_printers_json("test/data/win_control-out.pcapng", self.argsj))
+            self.print_all("test/data/win_control-out.pcapng"))
         assert packet["data"]
 
-    def test_win_positive_irp_status(self):
+    def test_win_irp_status(self):
         """
         Code was failing irp's that had non-0 irp_status
         While success is typically 0, it's not strictly required
         """
-        usbrply.printers.run("libusb-py",
-                             usbrply.parsers.pcap2json(
-                                 "test/data/win_irp-status-120.pcapng",
-                                 argsj=self.argsj),
-                             argsj=self.argsj)
-
-    def test_win_negative_irp_status(self):
+        self.print_all("test/data/win_irp-status-120.pcapng")
         """
         FML
         https://github.com/JohnDMcMaster/usbrply/issues/70
         """
-        usbrply.printers.run("libusb-py",
-                             usbrply.parsers.pcap2json(
-                                 "test/data/win_irp-status-neg.pcapng",
-                                 argsj=self.argsj),
-                             argsj=self.argsj)
+        self.print_all("test/data/win_irp-status-neg.pcapng")
 
     """
-    Linux
+    *************************************************************************
+    Linux packet tests
+    *************************************************************************
     """
 
-    def test_parse_lin_pcap(self):
+    def test_lin_packets(self):
         """Linux .pcap parse test"""
-        parsers.jgen2j(
-            usbrply.parsers.pcap2json("test/data/lin_misc.pcapng",
-                                      argsj=self.argsj))
+        self.print_all("test/data/lin_misc.pcapng")
 
     def test_parse_lin_setup(self):
         """Linux .pcap parse test"""
-        parsers.jgen2j(
-            usbrply.parsers.pcap2json("test/data/lin_setup.pcapng",
-                                      argsj=self.argsj))
+        self.print_all("test/data/lin_setup.pcapng")
 
     def test_lin_control_in(self):
-        """
-        Verify control in parses on Linux
-        """
-        usbrply.printers.run("libusb-py",
-                             usbrply.parsers.pcap2json(
-                                 "test/data/lin_control-in.pcapng",
-                                 argsj=self.argsj),
-                             argsj=self.argsj)
+        find_packet(self.print_all("test/data/lin_control-in.pcapng"))
 
     def test_lin_control_out(self):
-        """
-        Verify control out parses on Linux
-        """
-        usbrply.printers.run("libusb-py",
-                             usbrply.parsers.pcap2json(
-                                 "test/data/lin_control-out.pcapng",
-                                 argsj=self.argsj),
-                             argsj=self.argsj)
+        find_packet(self.print_all("test/data/lin_control-out.pcapng"))
 
+    """
     def test_lin_interrupt_in(self):
-        """
-        Verify interrupt in parses on Linux
-        """
-        usbrply.printers.run("libusb-py",
-                             usbrply.parsers.pcap2json(
-                                 "test/data/lin_interrupt-in.pcapng",
-                                 argsj=self.argsj),
-                             argsj=self.argsj)
+        # FIXME: this file is bad, get new
+        # find_packet(self.print_all("test/data/lin_interrupt-in.pcapng"))
+    """
 
     def test_lin_interrupt_out(self):
-        """
-        Verify interrupt out parses on Linux
-        """
-        usbrply.printers.run("libusb-py",
-                             usbrply.parsers.pcap2json(
-                                 "test/data/lin_interrupt-out.pcapng",
-                                 argsj=self.argsj),
-                             argsj=self.argsj)
+        find_packet(self.print_all("test/data/lin_interrupt-out.pcapng"))
 
 
 if __name__ == "__main__":
