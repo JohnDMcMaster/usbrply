@@ -23,6 +23,12 @@ def default_print_file(fname, cap_file):
     print_file = open(fname, "w")
 
 
+def indent_reset():
+    global indent
+
+    indent = ""
+
+
 def indent_inc():
     global indent
 
@@ -37,6 +43,10 @@ def indent_dec():
 
 def indented(s):
     print("%s%s" % (indent, s), file=print_file)
+
+
+def get_indent():
+    return indent
 
 
 class Printer(object):

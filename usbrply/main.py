@@ -10,17 +10,19 @@ from usbrply.util import add_bool_arg
 def main():
     parser = argparse.ArgumentParser(description='Replay captured USB packets')
     parser.add_argument('--range', '-r', help='inclusive range like 123:456')
+    """
     parser.add_argument('-k',
                         dest='ofmt',
                         default='libusb-py',
                         action='store_const',
                         const='linux',
-                        help='output linux kenrel')
+                        help='output linux kernel')
+    """
     parser.add_argument('-l',
                         dest='ofmt',
                         action='store_const',
                         const='libusb-c',
-                        help='output libusb')
+                        help='output libusb C (WARNING: experimental)')
     parser.add_argument('-p',
                         dest='ofmt',
                         action='store_const',
