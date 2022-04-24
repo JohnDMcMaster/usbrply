@@ -1,7 +1,7 @@
 from __future__ import print_function
 from usbrply import printer
 from usbrply import parsers
-from .printer import Printer, indented, indent_inc, indent_dec, get_indent
+from .printer import Printer, indented, indent_inc, indent_dec, get_indent, indent_reset
 import sys
 import binascii
 from . import usb
@@ -334,6 +334,7 @@ int main(int argc, char **argv) {
             self.prevd = d
 
     def run(self, jgen):
+        indent_reset()
         self.header()
 
         # Last wire command (ie non-comment)

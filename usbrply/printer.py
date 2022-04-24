@@ -23,6 +23,12 @@ def default_print_file(fname, cap_file):
     print_file = open(fname, "w")
 
 
+def indent_reset():
+    global indent
+
+    indent = ""
+
+
 def indent_inc():
     global indent
 

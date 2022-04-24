@@ -8,6 +8,8 @@ from usbrply import printer
 from usbrply import parsers
 from usbrply import filters
 import json
+import subprocess
+import shutil
 
 
 def printj(j):
@@ -54,10 +56,17 @@ class TestCase(unittest.TestCase):
         #warnings.simplefilter("ignore")
         printer.print_file = open("/dev/null", "w")
         self.argsj = {"verbose": self.verbose}
+        self.tmp_dir = "/tmp/usbrply"
+        if os.path.exists(self.tmp_dir):
+            shutil.rmtree(self.tmp_dir)
+        os.mkdir(self.tmp_dir)
 
     def tearDown(self):
         """Call after every test case."""
-        printer.print_file.close()
+        if printer.print_file:
+            printer.print_file.close()
+        if os.path.exists(self.tmp_dir):
+            shutil.rmtree(self.tmp_dir)
 
     def print_all(self, fn):
         j = parsers.jgen2j(usbrply.parsers.pcap2json(fn, argsj=self.argsj))
@@ -90,37 +99,48 @@ class TestCase(unittest.TestCase):
     *************************************************************************
     """
 
-    def test_print_pyprinter_lin(self):
+    def test_pyprinter_lin(self):
         usbrply.printers.run(
             "libusb-py",
             usbrply.parsers.pcap2json("test/data/lin_misc.pcapng",
                                       argsj=self.argsj),
             argsj=self.argsj)
 
-    def test_print_pyprinter_lin_wrapped(self):
-        self.argsj["wrapper"] = True
-        parsed = usbrply.parsers.pcap2json("test/data/lin_misc.pcapng",
-                                           argsj=self.argsj)
-        # filters.append("setup")
-        # filters.append("commenter")
-        filtered = filters.run(["vidpid"], parsed, self.argsj)
-        usbrply.printers.run("libusb-py", filtered, argsj=self.argsj)
+    def test_pyprinter_lin_wrapped(self):
+        fn = "/tmp/usbrply/tmp.py"
+        printer.print_file.close()
+        with open(fn, "w") as printer.print_file:
+            self.argsj["wrapper"] = True
+            parsed = usbrply.parsers.pcap2json("test/data/lin_misc.pcapng",
+                                               argsj=self.argsj)
+            # filters.append("setup")
+            # filters.append("commenter")
+            filtered = filters.run(["vidpid"], parsed, self.argsj)
+            usbrply.printers.run("libusb-py", filtered, argsj=self.argsj)
 
-    def test_print_pyprinter_win(self):
+        subprocess.check_call("python3 %s -h >/dev/null" % fn, shell=True)
+
+    def test_pyprinter_win(self):
         usbrply.printers.run(
             "libusb-py",
             usbrply.parsers.pcap2json("test/data/win_misc.pcapng",
                                       argsj=self.argsj),
             argsj=self.argsj)
 
-    def test_print_pyprinter_win_wrapped(self):
-        self.argsj["wrapper"] = True
-        parsed = usbrply.parsers.pcap2json("test/data/win_misc.pcapng",
-                                           argsj=self.argsj)
-        # filters.append("setup")
-        # filters.append("commenter")
-        filtered = filters.run(["vidpid"], parsed, self.argsj)
-        usbrply.printers.run("libusb-py", filtered, argsj=self.argsj)
+    def test_pyprinter_win_wrapped(self):
+        fn = "/tmp/usbrply/tmp.py"
+        printer.print_file.close()
+
+        with open(fn, "w") as printer.print_file:
+            self.argsj["wrapper"] = True
+            parsed = usbrply.parsers.pcap2json("test/data/win_misc.pcapng",
+                                               argsj=self.argsj)
+            # filters.append("setup")
+            # filters.append("commenter")
+            filtered = filters.run(["vidpid"], parsed, self.argsj)
+            usbrply.printers.run("libusb-py", filtered, argsj=self.argsj)
+
+        subprocess.check_call("python3 %s -h >/dev/null" % fn, shell=True)
 
     """
     *************************************************************************
@@ -137,13 +157,23 @@ class TestCase(unittest.TestCase):
                              argsj=self.argsj)
 
     def test_cprinter_lin_wrapped(self):
-        self.argsj["wrapper"] = True
-        parsed = usbrply.parsers.pcap2json("test/data/lin_misc.pcapng",
-                                           argsj=self.argsj)
-        # filters.append("setup")
-        # filters.append("commenter")
-        filtered = filters.run(["vidpid"], parsed, self.argsj)
-        usbrply.printers.run("libusb-c", filtered, argsj=self.argsj)
+        fn = "/tmp/usbrply/tmp.c"
+        printer.print_file.close()
+
+        with open(fn, "w") as printer.print_file:
+            self.argsj["wrapper"] = True
+            parsed = usbrply.parsers.pcap2json("test/data/lin_misc.pcapng",
+                                               argsj=self.argsj)
+            # filters.append("setup")
+            # filters.append("commenter")
+            filtered = filters.run(["vidpid"], parsed, self.argsj)
+            usbrply.printers.run("libusb-c", filtered, argsj=self.argsj)
+
+        if os.getenv("USBRPLY_TEST_ALL") == "Y":
+            subprocess.check_call(
+                "gcc -I/usr/include/libusb-1.0 %s -lusb-1.0 -o %s.out >/dev/null"
+                % (fn, fn),
+                shell=True)
 
     def test_cprinter_win(self):
         usbrply.printers.run(
@@ -153,13 +183,23 @@ class TestCase(unittest.TestCase):
             argsj=self.argsj)
 
     def test_cprinter_win_wrapped(self):
-        self.argsj["wrapper"] = True
-        parsed = usbrply.parsers.pcap2json("test/data/win_misc.pcapng",
-                                           argsj=self.argsj)
-        # filters.append("setup")
-        # filters.append("commenter")
-        filtered = filters.run(["vidpid"], parsed, self.argsj)
-        usbrply.printers.run("libusb-c", filtered, argsj=self.argsj)
+        fn = "/tmp/usbrply/tmp.c"
+        printer.print_file.close()
+
+        with open(fn, "w") as printer.print_file:
+            self.argsj["wrapper"] = True
+            parsed = usbrply.parsers.pcap2json("test/data/win_misc.pcapng",
+                                               argsj=self.argsj)
+            # filters.append("setup")
+            # filters.append("commenter")
+            filtered = filters.run(["vidpid"], parsed, self.argsj)
+            usbrply.printers.run("libusb-c", filtered, argsj=self.argsj)
+
+        if os.getenv("USBRPLY_TEST_ALL") == "Y":
+            subprocess.check_call(
+                "gcc -I/usr/include/libusb-1.0 %s -lusb-1.0 -o %s.out >/dev/null"
+                % (fn, fn),
+                shell=True)
 
     """
     *************************************************************************
