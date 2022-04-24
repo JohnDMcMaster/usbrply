@@ -37,6 +37,9 @@ def run_printers_json(fn, argsj):
     usbrply.printers.run("libusb-py",
                          usbrply.parsers.pcap2json(fn, argsj=argsj),
                          argsj=argsj)
+    usbrply.printers.run("libusb-c",
+                         usbrply.parsers.pcap2json(fn, argsj=argsj),
+                         argsj=argsj)
     return j
 
 
@@ -143,8 +146,6 @@ class TestCase(unittest.TestCase):
         usbrply.printers.run("libusb-c", filtered, argsj=self.argsj)
 
     def test_cprinter_win(self):
-        # FIXME: need bulk support
-        return
         usbrply.printers.run(
             "libusb-c",
             usbrply.parsers.pcap2json("test/data/win_misc.pcapng",
@@ -152,8 +153,6 @@ class TestCase(unittest.TestCase):
             argsj=self.argsj)
 
     def test_cprinter_win_wrapped(self):
-        # FIXME: need bulk support
-        return
         self.argsj["wrapper"] = True
         parsed = usbrply.parsers.pcap2json("test/data/win_misc.pcapng",
                                            argsj=self.argsj)

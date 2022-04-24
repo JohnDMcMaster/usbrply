@@ -102,7 +102,7 @@ def validate_read(expected, actual, msg):
         if not self.wrapper:
             return
         print('''
-def open_dev(usbcontext=None):
+def open_dev(vid_want, pid_want, usbcontext=None):
     if usbcontext is None:
         usbcontext = usb1.USBContext()
     
@@ -110,7 +110,7 @@ def open_dev(usbcontext=None):
     for udev in usbcontext.getDeviceList(skip_on_error=True):
         vid = udev.getVendorID()
         pid = udev.getProductID()
-        if (vid, pid) == (''' + "0x%04X, 0x%04X" % (self.vid, self.pid) + '''):
+        if (vid, pid) == (vid_want, pid_want):
             print('Found device')
             print('Bus %03i Device %03i: ID %04x:%04x' % (
                 udev.getBusNumber(),
@@ -120,18 +120,22 @@ def open_dev(usbcontext=None):
             return udev.open()
     raise Exception("Failed to find a device")
 
-if __name__ == "__main__":
+def main():
     import argparse 
-    
+
+    vid_want = ''' + "0x%04X" % (self.vid, ) + '''
+    pid_want = ''' + "0x%04X" % (self.pid, ) + '''
     parser = argparse.ArgumentParser(description='Replay captured USB packets')
     args = parser.parse_args()
 
     usbcontext = usb1.USBContext()
-    dev = open_dev(usbcontext)
+    dev = open_dev(vid_want, pid_want, usbcontext)
     dev.claimInterface(0)
     dev.resetDevice()
     replay(dev)
 
+if __name__ == "__main__":
+    main()
 ''',
               file=printer.print_file)
 
@@ -188,7 +192,6 @@ if __name__ == "__main__":
                       d["wIndex"], data_str))
 
         elif d["type"] == "bulkRead":
-            data_str = "\"\""
             indented("buff = bulkRead(0x%02X, 0x%04X)" % (d["endp"], d["len"]))
             indented("validate_read(%s, buff, \"%s\")" % (bytes2AnonArray(
                 binascii.unhexlify(d["data"])), packet_numbering))
@@ -199,7 +202,6 @@ if __name__ == "__main__":
             indented("bulkWrite(0x%02X, %s)" % (d["endp"], data_str))
 
         elif d["type"] == "interruptIn":
-            data_str = "\"\""
             indented("buff = interruptRead(0x%02X, 0x%04X)" %
                      (d["endp"], d["len"]))
             indented("validate_read(%s, buff, \"%s\")" % (bytes2AnonArray(
