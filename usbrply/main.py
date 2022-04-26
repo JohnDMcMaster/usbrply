@@ -7,6 +7,31 @@ import usbrply.filters
 from usbrply.util import add_bool_arg
 
 
+def munge_argsj(args):
+    argsj = args.__dict__
+
+    if argsj["device"] is None:
+        argsj["device-hi"] = True
+
+    argsj['vid'] = int(args.vid, 0)
+    argsj['pid'] = int(args.pid, 0)
+
+    if args.range:
+        (min_packet, max_packet) = args.range.split(':')
+        if len(min_packet) == 0:
+            min_packet = 0
+        else:
+            min_packet = int(min_packet, 0)
+        if len(max_packet) == 0:
+            max_packet = float('inf')
+        else:
+            max_packet = int(max_packet, 0)
+        argsj['min_packet'] = min_packet
+        argsj['max_packet'] = max_packet
+
+    return argsj
+
+
 def main():
     parser = argparse.ArgumentParser(description='Replay captured USB packets')
     parser.add_argument('--range', '-r', help='inclusive range like 123:456')
@@ -98,29 +123,7 @@ def main():
                  help='Emit code to make it a full executable program')
     parser.add_argument('fin', help='File name in')
     args = parser.parse_args()
-
-    argsj = args.__dict__
-
-    if argsj["device"] is None:
-        argsj["device-hi"] = True
-
-    argsj['vid'] = int(args.vid, 0)
-    argsj['pid'] = int(args.pid, 0)
-
-    if args.range:
-        (min_packet, max_packet) = args.range.split(':')
-        if len(min_packet) == 0:
-            min_packet = 0
-        else:
-            min_packet = int(min_packet, 0)
-        if len(max_packet) == 0:
-            max_packet = float('inf')
-        else:
-            max_packet = int(max_packet, 0)
-        argsj['min_packet'] = min_packet
-        argsj['max_packet'] = max_packet
-
-    # assert args.parser in ("lin-pcap","win-pcap")
+    argsj = munge_argsj(args)
 
     parsed = usbrply.parsers.pcap2json(args.fin, argsj)
     filters = []

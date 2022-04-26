@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
 
 from usbrply.printer import Printer, indented, indent_inc, indent_dec
-from usbrply.pyprinter import bytes2AnonArray
 from usbrply.util import add_bool_arg
 import usbrply.parsers
 import usbrply.serial.parsers as sparsers
 import usbrply.serial.printers as sprinters
 from usbrply.serial import mpsse
+import usbrply.main
+from usbrply import parsers
 
-import sys
-import binascii
-import json
-import os
 import argparse
 
 if __name__ == "__main__":
@@ -81,22 +78,13 @@ if __name__ == "__main__":
         '--print-short',
         default=False,
         help='Print warning when request returns less data than requested')
+    add_bool_arg(parser,
+                 '--mpsee',
+                 default=False,
+                 help='Decode mpsee traffic (highly experimental)')
 
     args = parser.parse_args()
-
-    vid = int(args.vid, 0)
-    pid = int(args.pid, 0)
-
-    if args.range:
-        (g_min_packet, g_max_packet) = args.range.split(':')
-        if len(g_min_packet) == 0:
-            g_min_packet = 0
-        else:
-            g_min_packet = int(g_min_packet, 0)
-        if len(g_max_packet) == 0:
-            g_max_packet = float('inf')
-        else:
-            g_max_packet = int(g_max_packet, 0)
+    argsj = usbrply.main.munge_argsj(args)
 
     parser = sparsers.FT2232CParser
     printer = {
@@ -105,20 +93,11 @@ if __name__ == "__main__":
         'json': sprinters.JSONSPrinter,
     }[args.ofmt]
 
-    if args.w:
-        filename, file_extension = os.path.splitext(args.fin)
-        fnout = filename + '.py'
-        print('Selected output file %s' % fnout)
-        # assert fnout != args.fin and fnout != json_fn
-        assert fnout != args.fin
-        fout = open(fnout, 'w')
-        sys.stdout = fout
-
     print("")
     print("")
     print("")
     print("PASS: USB parse")
-    usbj = usbrply.parsers.pcap2json(args)
+    usbj = parsers.jgen2j(usbrply.parsers.pcap2json(args.fin, argsj))
 
     print("")
     print("")
@@ -132,7 +111,7 @@ if __name__ == "__main__":
     print("PASS: serial print")
     printer(args).run(txtj)
 
-    if 1:
+    if args.mpsee:
         print("")
         print("")
         print("")

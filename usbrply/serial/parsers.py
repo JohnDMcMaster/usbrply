@@ -272,7 +272,10 @@ class FT2232CParser(object):
         interface = {
             0x81: 0,
             0x83: 1,
-        }[d["endp"]]
+        }.get(d["endp"])
+        if interface is None:
+            print("WARNING: skipping packet")
+            return
 
         prefix = data[0:2]
         data = data[2:]
