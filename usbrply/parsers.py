@@ -33,7 +33,12 @@ def pcap2json(fn, argsj={}):
 
 
 def jgen2j(jgen):
-    # Convert generator into static JSON
+    """
+    Convert generator into static JSON
+    Converts generates to lists
+    byetarray must already be converted to hex
+    """
+
     j = {}
     for k, v in jgen:
         # Convert nested generator to list

@@ -12,7 +12,8 @@ from usbrply import parsers
 import argparse
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Decode USB-serial data')
+    parser = argparse.ArgumentParser(
+        description='Decode USB-serial data (experimental / alpha quality)')
     parser.add_argument('--range', '-r', help='inclusive range like 123:456')
     parser.add_argument('--verbose', '-v', action='store_true', help='verbose')
     add_bool_arg(
@@ -93,32 +94,37 @@ if __name__ == "__main__":
         'json': sprinters.JSONSPrinter,
     }[args.ofmt]
 
-    print("")
-    print("")
-    print("")
-    print("PASS: USB parse")
+    if args.verbose:
+        print("")
+        print("")
+        print("")
+        print("PASS: USB parse")
     usbj = parsers.jgen2j(usbrply.parsers.pcap2json(args.fin, argsj))
 
-    print("")
-    print("")
-    print("")
-    print("PASS: serial parse")
+    if args.verbose:
+        print("")
+        print("")
+        print("")
+        print("PASS: serial parse")
     txtj = parser(args).run(usbj)
 
-    print("")
-    print("")
-    print("")
-    print("PASS: serial print")
+    if args.verbose:
+        print("")
+        print("")
+        print("")
+        print("PASS: serial print")
     printer(args).run(txtj)
 
     if args.mpsee:
-        print("")
-        print("")
-        print("")
-        print("PASS: MPSSE parse")
+        if args.verbose:
+            print("")
+            print("")
+            print("")
+            print("PASS: MPSSE parse")
         mpssej = mpsse.MPSSEParser().run(txtj)
-        print("")
-        print("")
-        print("")
-        print("PASS: MPSSE print")
+        if args.verbose:
+            print("")
+            print("")
+            print("")
+            print("PASS: MPSSE print")
         mpsse.MPSSETextPrinter(args).run(mpssej)

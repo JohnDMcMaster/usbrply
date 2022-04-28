@@ -1,6 +1,8 @@
 import binascii
 from usbrply.printer import Printer, indented, indent_inc, indent_dec
 from usbrply.pyprinter import bytes2AnonArray
+import json
+from usbrply import util
 
 
 class TextFT2232CPrinter(object):
@@ -58,7 +60,13 @@ class TextFT2232CPrinter(object):
 
 
 class JSONSPrinter(object):
+    def __init__(self, args):
+        pass
+
     def run(self, j):
+        j = util.hex_jdata(j)
+        if not util.validate_json(j):
+            raise ValueError("Require simple JSON")
         print(json.dumps(j, sort_keys=True, indent=4, separators=(',', ': ')))
 
 

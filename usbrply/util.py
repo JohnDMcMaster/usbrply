@@ -1,6 +1,8 @@
 import sys
 import subprocess
 import json
+from collections import OrderedDict
+import binascii
 
 
 def clear_screen():
@@ -107,3 +109,52 @@ def load_pcap_json(fin, usbrply_args=""):
 
     j = json.load(open(json_fn))
     return j, json_fn
+
+
+"""
+Common issues:
+-Bytes
+-Bytearray
+"""
+
+
+def validate_json(j, prefix="top"):
+    ret = True
+    if type(j) in (str, int, float):
+        return True
+    elif j is None:
+        return True
+    elif type(j) in (OrderedDict, dict):
+        for k, v in j.items():
+            ok = validate_json(k, prefix=prefix + " key")
+            ret = ok and ret
+            if ok:
+                ret = validate_json(v, prefix=prefix + "[m %s]" % k) and ret
+    elif type(j) in (tuple, list):
+        for vi, v in enumerate(j):
+            ret = validate_json(v, prefix=prefix + "[l %u]" % vi) and ret
+        return True
+    else:
+        print("json @ %s: unexpected type %s" % (prefix, type(j)))
+        return False
+    return ret
+
+
+def hex_jdata(jdata):
+    """
+    Some packets get converted to bytes/bytearray when parsing
+    Convert them back for storage
+    """
+    if type(jdata) in (dict, OrderedDict):
+        ret = {}
+        for k, v in jdata.items():
+            ret[k] = hex_jdata(v)
+        return ret
+    elif type(jdata) in (list, tuple):
+        for vi, v in enumerate(jdata):
+            jdata[vi] = hex_jdata(v)
+        return jdata
+    elif type(jdata) in (bytes, bytearray):
+        return tostr(binascii.hexlify(jdata))
+    else:
+        return jdata
