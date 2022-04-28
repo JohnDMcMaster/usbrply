@@ -48,9 +48,10 @@ class TextFT2232CPrinter(object):
         pass
 
     def run(self, j):
-        print("")
-        print("")
-        print("")
+        if self.verbose:
+            print("")
+            print("")
+            print("")
 
         self.header()
 

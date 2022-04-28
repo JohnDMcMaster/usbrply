@@ -22,7 +22,10 @@ if __name__ == "__main__":
         default=False,
         help='Insert sleep statements between packets to keep original timing')
     add_bool_arg(parser, '--comment', default=False, help='General comments')
-    add_bool_arg(parser, '--ascii', default=False, help='Print as ASCII')
+    add_bool_arg(parser,
+                 '--ascii',
+                 default=False,
+                 help='Print as ASCII (vs hex)')
     parser.add_argument('-p',
                         dest='ofmt',
                         default='libusb-py',
@@ -49,36 +52,11 @@ if __name__ == "__main__":
     parser.add_argument('--vid', default='0')
     parser.add_argument('--pid', default='0')
     parser.add_argument('fin', help='File name in')
-    parser.add_argument('-w', action='store_true', help='Write python file')
 
     parser.add_argument(
         '--parser',
         default="auto",
         help='Which parser engine to use. Choices: auto, lin-pcap, win-pcap')
-    add_bool_arg(
-        parser,
-        '--setup',
-        default=False,
-        help='Emit initialization packets like CLEAR_FEATURE, SET_FEATURE')
-    add_bool_arg(parser, '--wrapper', default=False, help='')
-    add_bool_arg(parser, '--fx2', default=False, help='FX2 comments')
-    add_bool_arg(parser,
-                 '--rel-pkt',
-                 default=False,
-                 help='Only count kept packets')
-    add_bool_arg(parser,
-                 '--packet-numbers',
-                 default=True,
-                 help='print packet numbers')
-    add_bool_arg(parser,
-                 '--remoteio',
-                 default=False,
-                 help='Warn on -EREMOTEIO resubmit (default: ignore)')
-    add_bool_arg(
-        parser,
-        '--print-short',
-        default=False,
-        help='Print warning when request returns less data than requested')
     add_bool_arg(parser,
                  '--mpsee',
                  default=False,

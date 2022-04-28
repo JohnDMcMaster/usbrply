@@ -286,12 +286,6 @@ class FT2232CParser:
         self.next_jdata(j)
 
     def handleBulkWrite(self, d):
-        # print(d)
-        # json encodes in hex
-        # protocol itself encodes in hex
-        # data = binascii.unhexlify(d["data"])
-        # print(len(data))
-
         interface = {
             0x02: 0,
             0x04: 1,
@@ -312,7 +306,6 @@ class FT2232CParser:
         # json encodes in hex
         # protocol itself encodes in hex
         data = binascii.unhexlify(d["data"])
-        # print(d)
 
         interface = {
             0x81: 0,
@@ -334,13 +327,15 @@ class FT2232CParser:
             self.passthrough_jdata(d)
         else:
             self.add_raw_jdata(d)
-            # Filter out 0 length? Maybe long term
-            self.next_jdata({
+            j = {
                 "type": "read",
                 "interface": interface,
                 "data": binascii.hexlify(data),
                 "prefix": prefix,
-            })
+            }
+            if self.emit_adata:
+                j["adata"] = util.to_pintable_str(data)
+            self.next_jdata(j)
 
     def run(self, j):
         self.header()
