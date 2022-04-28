@@ -106,14 +106,14 @@ if __name__ == "__main__":
         print("")
         print("")
         print("PASS: serial parse")
-    txtj = parser(args).run(usbj)
+    txtj = parser(argsj=argsj).run(usbj)
 
     if args.verbose:
         print("")
         print("")
         print("")
         print("PASS: serial print")
-    printer(args).run(txtj)
+    printer(argsj=argsj).run(txtj)
 
     if args.mpsee:
         if args.verbose:

@@ -2,14 +2,18 @@
 
 import usbrply.parsers
 import usbrply.printers
-import unittest
-import os
 from usbrply import printer
 from usbrply import parsers
 from usbrply import filters
+from usbrply.serial.parsers import FT2232CParser
+from usbrply.serial.printers import JSONSPrinter
+from usbrply import util
+import unittest
+import os
 import json
 import subprocess
 import shutil
+import binascii
 
 
 def printj(j):
@@ -45,7 +49,7 @@ def run_printers_json(fn, argsj):
     return j
 
 
-class TestCase(unittest.TestCase):
+class TestCommon(unittest.TestCase):
     def setUp(self):
         """Call before every test case."""
         print("")
@@ -53,7 +57,6 @@ class TestCase(unittest.TestCase):
         print("")
         print("Start " + self._testMethodName)
         self.verbose = os.getenv("VERBOSE", "N") == "Y"
-        #warnings.simplefilter("ignore")
         printer.print_file = open("/dev/null", "w")
         self.argsj = {"verbose": self.verbose}
         self.tmp_dir = "/tmp/usbrply"
@@ -68,6 +71,8 @@ class TestCase(unittest.TestCase):
         if os.path.exists(self.tmp_dir):
             shutil.rmtree(self.tmp_dir)
 
+
+class TestCore(TestCommon):
     def print_all(self, fn):
         j = parsers.jgen2j(usbrply.parsers.pcap2json(fn, argsj=self.argsj))
         usbrply.printers.run("libusb-py",
@@ -293,6 +298,56 @@ class TestCase(unittest.TestCase):
 
     def test_lin_interrupt_out(self):
         find_packet(self.print_all("test/data/lin_interrupt-out.pcapng"))
+
+
+def data_serj2usbj(serj_data):
+    """
+    Convert USB serial JSON back to original USB JSON
+    """
+    ret = []
+    for data in serj_data:
+        if "raw_data" in data:
+            ret += data["raw_data"]
+        else:
+            ret.append(data)
+    return ret
+
+
+def tx_string_data(serj):
+    ret = ""
+    for data in serj["data"]:
+        if data["type"] == "write":
+            ret += util.tostr(binascii.unhexlify(data["data"]))
+    return ret
+
+
+def tx_string_adata(serj):
+    ret = ""
+    for data in serj["data"]:
+        if data["type"] == "write":
+            ret += data["adata"]
+    return ret
+
+
+class TestSerial(TestCommon):
+    def test_tx(self):
+        fn = "test/ftdi/2022-04-26_01_ft232-goodfet_tx-hello.pcapng"
+        usbj = parsers.jgen2j(usbrply.parsers.pcap2json(fn, argsj=self.argsj))
+        serj = FT2232CParser(argsj=self.argsj).run(usbj)
+        assert "hello" == tx_string_adata(serj)
+        assert "hello" == tx_string_data(serj)
+
+    def test_packet_loopback(self):
+        """
+        Convert pcap to serial format and then extract original pcap
+        """
+        fn = "test/ftdi/2022-04-26_01_ft232-goodfet_tx-hello.pcapng"
+        self.argsj["keep_everything"] = True
+
+        usbj = parsers.jgen2j(usbrply.parsers.pcap2json(fn, argsj=self.argsj))
+        serj = FT2232CParser(argsj=self.argsj).run(usbj)
+        data_back = data_serj2usbj(serj["data"])
+        assert usbj["data"] == data_back
 
 
 if __name__ == "__main__":

@@ -6,8 +6,9 @@ from usbrply import util
 
 
 class TextFT2232CPrinter(object):
-    def __init__(self, args):
-        self.ascii = args.ascii
+    def __init__(self, argsj=None):
+        self.verbose = argsj.get("verbose", False)
+        self.ascii = argsj.get("ascii", False)
 
     def next_json(self, j, prefix=None):
         if j['type'] == 'read':
@@ -60,7 +61,7 @@ class TextFT2232CPrinter(object):
 
 
 class JSONSPrinter(object):
-    def __init__(self, args):
+    def __init__(self, argsj=None):
         pass
 
     def run(self, j):
@@ -71,9 +72,10 @@ class JSONSPrinter(object):
 
 
 class PythonFT2232CPrinter(object):
-    def __init__(self, args):
-        self.ascii = args.ascii
-        self.wrapper = args.wrapper
+    def __init__(self, argsj=None):
+        self.verbose = argsj.get("verbose", False)
+        self.ascii = argsj.get("ascii", False)
+        self.wrapper = argsj.get("wrapper", False)
 
     def next_json(self, j, prefix=None):
         if j['type'] == 'read':

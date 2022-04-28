@@ -1,5 +1,6 @@
 import binascii
 from _collections import OrderedDict
+from usbrply import util
 
 FTDI_DEVICE_OUT_REQTYPE = 64
 FTDI_DEVICE_IN_REQTYPE = 192
@@ -49,14 +50,36 @@ def flags2dict(s2i, vali):
     return ret
 
 
-# is a packet json output format but a serial input format
-class FT2232CParser(object):
-    def __init__(self, args):
-        self.ascii = args.ascii
+"""
+"is a packet json output format but a serial input format
+A options to consider:
+-Don't preserve source packets
+-Only output serial packets
+"""
+
+
+class FT2232CParser:
+    def __init__(self, argsj=None):
         self.jo = []
         # Lower level packet definitions generating last packet
         self.raw_jdata = []
-        self.verbose = False
+        self.verbose = argsj.get("verbose", False)
+
+        # emit ASCII data decoding
+        # unprintable characters are replaced with .s
+        self.emit_adata = argsj.get("emit_adata", True)
+
+        # After parsing packet stash the source packet(s)
+        self.keep_raw_data = argsj.get("keep_raw_data", False)
+        # Unknown packets are passed through as-is
+        self.keep_unused_data = argsj.get("keep_unused_data", False)
+        # When false they are passed through (if passthrough is kept)
+        self.keep_empty_txrx = argsj.get("keep_empty_txrx", False)
+
+        if argsj.get("keep_everything", False):
+            self.keep_raw_data = True
+            self.keep_unused_data = True
+            self.keep_empty_txrx = True
 
     def add_raw_jdata(self, data):
         self.raw_jdata.append(data)
@@ -64,10 +87,11 @@ class FT2232CParser(object):
     def passthrough_jdata(self, jdata):
         # Should have already bound if something was buffered
         assert not self.raw_jdata
-        self.jo.append(jdata)
+        if self.keep_unused_data:
+            self.jo.append(jdata)
 
     def next_jdata(self, jdata):
-        if self.raw_jdata:
+        if self.keep_raw_data and self.raw_jdata:
             jdata["raw_data"] = self.raw_jdata
         self.jo.append(jdata)
         self.raw_jdata = []
@@ -274,11 +298,14 @@ class FT2232CParser(object):
         }[d["endp"]]
 
         self.add_raw_jdata(d)
-        self.next_jdata({
+        j = {
             "type": "write",
             "interface": interface,
             "data": d["data"],
-        })
+        }
+        if self.emit_adata:
+            j["adata"] = util.to_pintable_str(binascii.unhexlify(d["data"]))
+        self.next_jdata(j)
 
     def handleBulkRead(self, d):
         assert len(d["data"]) % 2 == 0
@@ -303,14 +330,17 @@ class FT2232CParser(object):
         # should look into these but just ignore for now
         # assert prefix == "\x42\x60" or prefix == "\x32\x60" or prefix == "\x32\x00", d
 
-        self.add_raw_jdata(d)
-        # Filter out 0 length? Maybe long term
-        self.next_jdata({
-            "type": "read",
-            "interface": interface,
-            "data": binascii.hexlify(data),
-            "prefix": prefix,
-        })
+        if len(data) == 0 and not self.keep_empty_txrx:
+            self.passthrough_jdata(d)
+        else:
+            self.add_raw_jdata(d)
+            # Filter out 0 length? Maybe long term
+            self.next_jdata({
+                "type": "read",
+                "interface": interface,
+                "data": binascii.hexlify(data),
+                "prefix": prefix,
+            })
 
     def run(self, j):
         self.header()

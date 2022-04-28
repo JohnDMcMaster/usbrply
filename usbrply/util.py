@@ -97,6 +97,15 @@ def tostr(buff):
         assert 0, type(buff)
 
 
+def isprint(c):
+    return c >= ' ' and c <= '~'
+
+
+def to_pintable_str(buff):
+    buff = tostr(buff)
+    return "".join([c for c in buff if isprint(c)])
+
+
 # Used by scraper scripts
 # Due to python2 vs python3 issue, its better to subprocess this
 def load_pcap_json(fin, usbrply_args=""):
