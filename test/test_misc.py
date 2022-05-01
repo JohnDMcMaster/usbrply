@@ -7,6 +7,7 @@ from usbrply import parsers
 from usbrply import filters
 from usbrply.serial.parsers import FT2232CParser
 from usbrply.serial.printers import JSONSPrinter
+from usbrply.serial.mpsse import MPSSEParser
 from usbrply import util
 import unittest
 import os
@@ -331,6 +332,13 @@ def tx_string_adata(serj):
 
 class TestSerial(TestCommon):
     def test_tx(self):
+        fn = "test/data/ftdi_tx-l.pcapng"
+        usbj = parsers.jgen2j(usbrply.parsers.pcap2json(fn, argsj=self.argsj))
+        serj = FT2232CParser(argsj=self.argsj).run(usbj)
+        assert "l" == tx_string_adata(serj)
+        assert "l" == tx_string_data(serj)
+
+    def test_tx_multi(self):
         fn = "test/ftdi/2022-04-26_01_ft232-goodfet_tx-hello.pcapng"
         usbj = parsers.jgen2j(usbrply.parsers.pcap2json(fn, argsj=self.argsj))
         serj = FT2232CParser(argsj=self.argsj).run(usbj)
@@ -348,6 +356,13 @@ class TestSerial(TestCommon):
         serj = FT2232CParser(argsj=self.argsj).run(usbj)
         data_back = data_serj2usbj(serj["data"])
         assert usbj["data"] == data_back
+
+    def test_mpsee(self):
+        fn = "test/ftdi/2022-04-26_01_ft232-goodfet_tx-hello.pcapng"
+        usbj = parsers.jgen2j(usbrply.parsers.pcap2json(fn, argsj=self.argsj))
+        serj = FT2232CParser(argsj=self.argsj).run(usbj)
+        mpseej = MPSSEParser(argsj=self.argsj).run(serj)
+
 
 
 if __name__ == "__main__":

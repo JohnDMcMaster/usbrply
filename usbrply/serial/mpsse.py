@@ -10,6 +10,7 @@ application can determine whether communication with the MPSSE is possible.
 """
 
 import binascii
+import json
 
 mpsse_cmd_s2i = {
     # think values < 0x10 are bit bang?
@@ -113,9 +114,11 @@ mpsse_cmd_i2s = dict([(v, k) for k, v in mpsse_cmd_s2i.items()])
 
 BAD_COMMAND = 0xFA
 
-
-class MPSSEParser(object):
-    def __init__(self):
+"""
+Ingests Serial JSON
+"""
+class MPSSEParser:
+    def __init__(self, argsj=None):
         self.jo = []
 
     def next_json(self, j, prefix=None):
@@ -153,9 +156,9 @@ class MPSSEParser(object):
         return jret
 
 
-class MPSSETextPrinter(object):
-    def __init__(self, args):
-        self.ascii = args.ascii
+class MPSSETextPrinter:
+    def __init__(self, argsj=None):
+        pass
 
     def next_json(self, j, prefix=None):
         print(j)
@@ -169,9 +172,9 @@ class MPSSETextPrinter(object):
         #self.footer()
 
 
-class MPSSEJSONSPrinter(object):
-    def __init__(self, args):
-        self.ascii = args.ascii
+class MPSSEJSONSPrinter:
+    def __init__(self, argsj=None):
+        pass
 
     def run(self, j):
         print(json.dumps(j, sort_keys=True, indent=4, separators=(',', ': ')))
