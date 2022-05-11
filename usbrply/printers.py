@@ -4,6 +4,8 @@ from .cprinter import LibusbCPrinter
 
 
 def run(ofmt, j, argsj={}):
+    if not ofmt:
+        ofmt = "libusb-py"
     cls = {
         "json": JSONPrinter,
         "libusb-c": LibusbCPrinter,
