@@ -144,11 +144,14 @@ def main():
 
     txtj = fparser(argsj=argsj).run(j)
 
+    ofmt = args.ofmt
+    if ofmt is None:
+        ofmt = "libusb-py"
     printer = {
         'text': sprinters.TextFT2232CPrinter,
         'libusb-py': sprinters.PythonFT2232CPrinter,
         'json': sprinters.JSONSPrinter,
-    }[args.ofmt]
+    }[ofmt]
 
     if args.verbose:
         print("")
