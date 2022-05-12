@@ -364,6 +364,5 @@ class TestSerial(TestCommon):
         mpseej = MPSSEParser(argsj=self.argsj).run(serj)
 
 
-
 if __name__ == "__main__":
     unittest.main()  # run all tests

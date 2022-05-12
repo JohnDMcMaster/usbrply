@@ -116,9 +116,14 @@ class VidpidFilter(object):
                     (data['type'], req2s(data["bRequestType"],
                                          data["bRequest"]),
                      data["bRequestType"], data["bRequest"]))
+                self.verbose and print(
+                    "VidpidFilter drop device %s" % data.get('device'))
                 self.drops += 1
                 continue
-            yield data
+            else:
+                self.verbose and print(
+                    "VidpidFilter keep device %s" % data.get('device'))
+                yield data
         yield self.comment("VidpidFilter: dropped %s / %s entries, want %s" %
                            (self.drops, self.entries,
                             format_vidpid(self.arg_vid, self.arg_pid)))
@@ -129,6 +134,9 @@ class VidpidFilter(object):
                 yield k, self.gen_data(v)
             else:
                 yield k, v
-        self.verbose and print("vidpid: %u device mappings" %
-                               (len(self.device2vidpid)))
+        if self.verbose:
+            print("vidpid: %u device mappings" % (len(self.device2vidpid)))
+            for k, (vid, pid) in sorted(self.device2vidpid.items()):
+                print("  %s: %04X:%04X" % (k, vid, pid))
+
         yield "device2vidpid", self.device2vidpid

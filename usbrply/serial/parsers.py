@@ -67,16 +67,16 @@ class FT2232CParser:
 
         # emit ASCII data decoding
         # unprintable characters are replaced with .s
-        self.emit_adata = argsj.get("emit_adata", True)
+        self.emit_adata = argsj.get("serial_emit_adata", True)
 
         # After parsing packet stash the source packet(s)
-        self.keep_raw_data = argsj.get("keep_raw_data", False)
+        self.keep_raw_data = argsj.get("serial_keep_raw_data", False)
         # Unknown packets are passed through as-is
-        self.keep_unused_data = argsj.get("keep_unused_data", False)
+        self.keep_unused_data = argsj.get("serial_keep_unused_data", False)
         # When false they are passed through (if passthrough is kept)
-        self.keep_empty_txrx = argsj.get("keep_empty_txrx", False)
+        self.keep_empty_txrx = argsj.get("serial_keep_empty_txrx", False)
 
-        if argsj.get("keep_everything", False):
+        if argsj.get("serial_keep_everything", False):
             self.keep_raw_data = True
             self.keep_unused_data = True
             self.keep_empty_txrx = True

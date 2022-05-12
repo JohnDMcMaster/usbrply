@@ -125,7 +125,7 @@ def validate_read(expected, actual, msg):
 if __name__ == "__main__":
     import argparse 
     
-    parser = argparse.ArgumentParser(description='Replay captured USB-serial packets')
+    parser = argparse.ArgumentParser(description='Replay USB-serial commands')
     parser.add_argument('-p',
                         "--port",
                         default="/dev/ttyUSB0",

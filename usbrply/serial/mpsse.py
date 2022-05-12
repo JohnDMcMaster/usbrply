@@ -113,10 +113,11 @@ mpsse_cmd_s2i = {
 mpsse_cmd_i2s = dict([(v, k) for k, v in mpsse_cmd_s2i.items()])
 
 BAD_COMMAND = 0xFA
-
 """
 Ingests Serial JSON
 """
+
+
 class MPSSEParser:
     def __init__(self, argsj=None):
         self.jo = []
