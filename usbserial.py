@@ -40,6 +40,12 @@ def main():
                         action='store_const',
                         const='json',
                         help='output json')
+    parser.add_argument("--text",
+                        '-t',
+                        dest='ofmt',
+                        action='store_const',
+                        const='text',
+                        help='output txt')
     parser.add_argument('-s', help='allow short')
     parser.add_argument('-f', help='custom call')
     add_bool_arg(parser,
