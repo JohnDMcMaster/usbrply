@@ -127,14 +127,16 @@ def main():
         print("")
         print("")
         print("PASS: USB parse")
-    parsed = usbrply.parsers.pcap2json(args.fin, argsj)
+    gen = usbrply.parsers.pcap2json_prepare(args.fin, argsj)
+    parsed = gen.run()
+    # HACK: get from json output
     filters = []
     filters.append("vidpid")
     if not args.setup:
         filters.append("setup")
     if args.comment or args.fx2:
         filters.append("commenter")
-    filtered = usbrply.filters.run(filters,
+    fobjs, filtered = usbrply.filters.runx(filters,
                                    parsed,
                                    argsj,
                                    verbose=args.verbose)
@@ -145,8 +147,26 @@ def main():
         print("")
         print("PASS: serial parse")
     j = parsers.jgen2j(filtered)
+    fvidpid = fobjs["vidpid"]
+    """
+    print(len(j))
+    import json
+    print(json.dumps(j,
+                  sort_keys=True,
+                  indent=4,
+                  separators=(',', ': ')))
+    # print(fvidpid.keep_device, gen.arg_device)
+    """
+    # FIXME: device-hi is faster, so kind of messy
+    device = gen.arg_device
+    vid, pid = fvidpid.device2vidpid[device ]
+    # print("%04X:%04X" % (vid, pid))
 
-    fparser = sparsers.FT2232CParser
+    # FIXME: allow user to force parser
+    if vid == 0x0403:
+        fparser = sparsers.FT2232CParser
+    else:
+        raise Exception("Unknown device" % "%04X:%04X" % (vid, pid))
 
     txtj = fparser(argsj=argsj).run(j)
 

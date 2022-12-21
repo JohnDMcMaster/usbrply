@@ -22,7 +22,7 @@ def bytes2AnonArray(bytes_data):
     for i in range(len(bytes_data)):
         if i and i % 16 == 0:
             byte_str += '\"\n            b\"'
-        byte_str += "\\x%02X" % (myord(bytes_data[i]), )
+        byte_str += "\\x%02X" % (bytes_data[i], )
     return byte_str + "\""
 
 

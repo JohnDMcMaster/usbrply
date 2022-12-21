@@ -7,7 +7,7 @@ from . import win_pcap
 from . import pcap_util
 
 
-def pcap2json(fn, argsj={}):
+def pcap2json_prepare(fn, argsj={}):
     """
     argsj: argument dict
     """
@@ -27,7 +27,10 @@ def pcap2json(fn, argsj={}):
         "win-pcapng": win_pcap.Gen,
     }[parser]
     gen = cls(fn, argsj)
+    return gen
 
+def pcap2json(fn, argsj={}):
+    gen = pcap2json_prepare(fn, argsj)
     # k,v generator
     return gen.run()
 

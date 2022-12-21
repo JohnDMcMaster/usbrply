@@ -22,10 +22,26 @@ def run(filts, jgen, argsj={}, verbose=False):
 
     filt0 = filts[0]
     cls = filters[filt0]
+    obj = cls(argsj, verbose=verbose)
     return run(filts[1:],
-               cls(argsj, verbose=verbose).run(jgen),
+               obj.run(jgen),
                argsj=argsj,
                verbose=verbose)
+
+# include object references
+def runx(filts, jgen, argsj={}, verbose=False):
+    if len(filts) == 0:
+        return {}, jgen
+
+    filt0 = filts[0]
+    cls = filters[filt0]
+    obj = cls(argsj, verbose=verbose)
+    objr, retr = runx(filts[1:],
+               obj.run(jgen),
+               argsj=argsj,
+               verbose=verbose)
+    objr[filt0] = obj
+    return objr, retr
 
 
 # FIXME: loaded data is not generated
