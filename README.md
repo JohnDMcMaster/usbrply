@@ -63,7 +63,7 @@ Test
 * python usbrply\Scripts\usbrply -h
   * You should get a help message
 * Download and place in your home dir: https://github.com/JohnDMcMaster/usbrply-test/raw/master/win1.pcapng
-* python usrply\Scripts\usbrply win1.pcapng
+* python usbply\Scripts\usbrply win1.pcapng
   * You should see python code that will reproduce the .pcap file commands
 
 # Sample workflows
@@ -101,7 +101,7 @@ Sample workflow for capturing Windows VM traffic from Linux host and replaying t
 * Windows: start your application, do your thing, etc to generate packets
 * Linux: stop capture
 * Linux: save capture. Save in pcap-ng format (either should work)
-* Linux: run: "usbrply --device-hi -p my.pcapng >replay.py"
+* Linux: run: "usbrply\Scripts\usbrply --wrapper --device-hi -p my.pcapng"
 * Linux: detatch USB device from Windows guest
 * Linux: run "python replay.py"
 * Verify expected device behavior. Did an LED blink? Did you get expected data back?
