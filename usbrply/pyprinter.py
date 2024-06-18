@@ -124,8 +124,8 @@ def open_dev(vid_want, pid_want, usbcontext=None):
 def main():
     import argparse 
 
-    vid_want = ''' + "0x%04X" % (self.vid, ) + '''
-    pid_want = ''' + "0x%04X" % (self.pid, ) + '''
+    vid_want = ''' + self.vid_str() + '''
+    pid_want = ''' + self.pid_str() + '''
     parser = argparse.ArgumentParser(description="Replay captured USB packets")
     args = parser.parse_args()
 
@@ -139,6 +139,18 @@ if __name__ == "__main__":
     main()
 ''',
               file=printer.print_file)
+
+    def vid_str(self):
+        if self.vid:
+            return "0x%04X" % (self.vid, )
+        else:
+            return "None"
+
+    def pid_str(self):
+        if self.pid:
+            return "0x%04X" % (self.pid, )
+        else:
+            return "None"
 
     def packet_number_str(self, d):
         if self.packet_numbers:
